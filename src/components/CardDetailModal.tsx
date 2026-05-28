@@ -107,28 +107,6 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
   const [moving, setMoving] = useState(false);
   const moveDropdownRef = useRef<HTMLDivElement>(null);
 
-  const sortedComments = useMemo(() => {
-    if (!details) return [];
-    return [...details.comments].sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime();
-      const dateB = new Date(b.createdAt).getTime();
-      return commentsOrder === 'newest' ? dateB - dateA : dateA - dateB;
-    });
-  }, [details?.comments, commentsOrder]);
-
-  const uniqueCommenters = useMemo(() => {
-    if (!details) return [];
-    const seen = new Map<string, { author: string; authorAvatar: string; count: number }>();
-    for (const c of details.comments) {
-      if (seen.has(c.author)) {
-        seen.get(c.author)!.count++;
-      } else {
-        seen.set(c.author, { author: c.author, authorAvatar: c.authorAvatar, count: 1 });
-      }
-    }
-    return Array.from(seen.values()).sort((a, b) => b.count - a.count);
-  }, [details?.comments]);
-
   // Participantes unificados: comentadores + atores de eventos
   const uniqueParticipants = useMemo(() => {
     if (!details) return [];
@@ -143,11 +121,6 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
     }
     return Array.from(seen.values()).sort((a, b) => b.count - a.count);
   }, [details?.comments, details?.events]);
-
-  const filteredComments = useMemo(() => {
-    if (!commentAuthorFilter) return sortedComments;
-    return sortedComments.filter(c => c.author === commentAuthorFilter);
-  }, [sortedComments, commentAuthorFilter]);
 
   type TimelineItem =
     | { kind: 'comment'; id: string; author: string; authorAvatar: string; body: string; createdAt: string }

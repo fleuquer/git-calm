@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  History, GitBranch, Plus, Edit, Trash2, Check, Trash, X,
+  History, Plus, Edit, Trash2, Check, Trash, X,
   CircleX, CircleDot, GitMerge, Calendar, MessageSquare, Settings2,
   UserCheck, Tag, Type, ArrowRightLeft,
 } from 'lucide-react';

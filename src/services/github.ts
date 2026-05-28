@@ -1642,11 +1642,6 @@ export class GitHubService {
 
       console.log(`📋 Cards do usuário ${username}:`, userCards.length);
 
-      // Repos conhecidos dos cards do usuário no board
-      const userRepos = [...new Set(
-        userCards.filter((c: any) => c.repo).map((c: any) => c.repo as string)
-      )];
-
       // Buscar timeline dos cards e push events do usuário em paralelo
       const timelinePromises = userCards
         .filter(card => card.repo)

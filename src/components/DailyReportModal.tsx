@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileText, RefreshCw, Calendar, Clock, User, Activity, MessageSquare, GitCommit, Users, XCircle, AlertTriangle, Wrench, Sparkles, MapPin, Filter } from 'lucide-react';
+import { X, FileText, RefreshCw, Calendar, Clock, Activity, MessageSquare, GitCommit, Users, XCircle, AlertTriangle, Wrench, Sparkles, MapPin, Filter } from 'lucide-react';
 import type { ProjectCard, ProjectColumn, UserDailyReport } from '../types';
 import { getPeopleForView } from '../utils/viewPeopleMapping';
 import { GitHubService } from '../services/github';
