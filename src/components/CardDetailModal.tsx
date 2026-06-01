@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ExternalLink, Calendar, Clock, User, Plus, Send, Trash2, GitBranch, GitCommit, Link as LinkIcon, ArrowUpDown, ChevronDown, ChevronUp, CheckCircle, FileText, AlertCircle, MessageSquare, Clipboard, Eye, ArrowRight } from 'lucide-react';
+import { X, ExternalLink, Calendar, Clock, User, Plus, Send, Trash2, GitBranch, GitCommit, Link as LinkIcon, ArrowUpDown, ChevronDown, ChevronUp, CheckCircle, FileText, AlertCircle, MessageSquare, Clipboard, Eye, ArrowRight, Maximize2, Minimize2 } from 'lucide-react';
 import type { ProjectCard, ProjectColumn } from '../types';
 import type { CommentTemplate } from '../types/commentTemplates';
 import { GitHubService } from '../services/github';
@@ -106,6 +106,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
   const [showMoveDropdown, setShowMoveDropdown] = useState(false);
   const [moving, setMoving] = useState(false);
   const moveDropdownRef = useRef<HTMLDivElement>(null);
+  const timelineScrollRef = useRef<HTMLDivElement>(null);
 
   // Participantes unificados: comentadores + atores de eventos
   const uniqueParticipants = useMemo(() => {
@@ -206,6 +207,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
   }, [timeline]);
   const [branchesWarning, setBranchesWarning] = useState<string | null>(null);
   const [showCommentEditor, setShowCommentEditor] = useState(false);
+  const [commentEditorExpanded, setCommentEditorExpanded] = useState(false);
 
   // Fechar dropdown de mover ao clicar fora
   useEffect(() => {
@@ -565,7 +567,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                       : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                   }`}
                 >
-                  Linha do tempo
+                  Comentários & Atividade
                   {details && (details.comments.length + details.events.length) > 0 && (
                     <span className="ml-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full">
                       {details.comments.length + details.events.length}
@@ -576,7 +578,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
             </div>
 
             {/* Conteúdo das tabs - rolável */}
-            <div className="flex-1 overflow-y-auto px-6 pb-6">
+            <div ref={timelineScrollRef} className="flex-1 overflow-y-auto px-6 pb-6">
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="text-center">
@@ -603,26 +605,30 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                   )}
 
                   {activeTab === 'timeline' && (
-                    <div className="space-y-4 pt-4 relative">
-                      {/* Botão FAB flutuante para escrever comentário */}
+                    <div className="space-y-4 relative">
+                      {/* Botão para escrever comentário */}
                       {!showCommentEditor && timelineFilter !== 'activity' && (
                         <button
                           onClick={() => {
                             setShowCommentEditor(true);
+                            timelineScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
                             // Sempre seleciona free-default como padrão (primeiro da lista)
                             const freeTemplate = availableTemplates.find(t => t.id === 'free-default') || availableTemplates[0] || null;
                             setSelectedTemplate(freeTemplate);
                           }}
-                          className="fixed bottom-8 right-8 z-50 flex items-center justify-center w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all transform hover:scale-110"
-                          title="Escrever comentário"
+                          className="flex items-center gap-2 w-full mt-4 px-4 py-3 rounded-lg border-2 border-dashed border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-400 dark:hover:border-blue-500 transition-all text-sm font-medium"
                         >
-                          <Plus size={24} />
+                          <Plus size={16} />
+                          Escrever um comentário...
                         </button>
                       )}
 
-                      {/* Editor de comentário expansível com scroll */}
+                      {/* Editor de comentário */}
                       {showCommentEditor && (
-                        <div className="sticky top-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10 max-h-[70vh] flex flex-col">
+                        <div className={commentEditorExpanded
+                          ? 'fixed inset-0 z-[300] bg-white dark:bg-gray-800 flex flex-col'
+                          : 'sticky top-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-50 max-h-[70vh] flex flex-col'
+                        }>
                           {/* Cabeçalho fixo */}
                           <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -668,8 +674,19 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                               })}
                             </div>
                             <button
+                              onClick={() => setCommentEditorExpanded(v => !v)}
+                              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                              title={commentEditorExpanded ? 'Recolher editor' : 'Expandir para tela cheia'}
+                            >
+                              {commentEditorExpanded
+                                ? <Minimize2 size={16} className="text-gray-600 dark:text-gray-400" />
+                                : <Maximize2 size={16} className="text-gray-600 dark:text-gray-400" />
+                              }
+                            </button>
+                            <button
                               onClick={() => {
                                 setShowCommentEditor(false);
+                                setCommentEditorExpanded(false);
                                 setNewComment('');
                                 setSelectedTemplate(null);
                                 setTemplateData({});
@@ -1008,7 +1025,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                                   value={newComment}
                                   onChange={(e) => setNewComment(e.target.value)}
                                   placeholder="Adicionar um comentário... (suporta Markdown)"
-                                  className="w-full px-3 py-2 bg-transparent text-gray-900 dark:text-gray-100 text-sm resize-none focus:outline-none min-h-[120px]"
+                                  className={`w-full px-3 py-2 bg-transparent text-gray-900 dark:text-gray-100 text-sm resize-y focus:outline-none ${commentEditorExpanded ? 'min-h-[60vh]' : 'min-h-[120px]'}`}
                                   rows={5}
                                 />
                               ) : (
@@ -1046,6 +1063,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                                   setNewComment('');
                                   setShowPreview(false);
                                   setShowCommentEditor(false);
+                                  setCommentEditorExpanded(false);
                                   await loadDetails();
                                   onUpdate?.();
                                 } catch (error) {
@@ -1150,7 +1168,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                         </div>
                       </div>
 
-                      {/* Linha do tempo unificada */}
+                      {/* Linha do tempo unificada — comentários + eventos */}
                       {timeline.length > 0 ? (
                         <div className="relative">
                           {/* Linha vertical */}
@@ -1264,7 +1282,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                       ) : (
                         <div className="text-center py-10">
                           <p className="text-gray-500 dark:text-gray-400 italic text-sm">
-                            {timelineFilter === 'comments' ? 'Nenhum comentário ainda. Seja o primeiro a comentar!' : timelineFilter === 'activity' ? 'Nenhuma atividade registrada' : 'Nenhum item na linha do tempo'}
+                            {timelineFilter === 'comments' ? 'Nenhum comentário ainda. Seja o primeiro a comentar!' : timelineFilter === 'activity' ? 'Nenhuma atividade registrada' : 'Nenhum item ainda'}
                           </p>
                         </div>
                       )}
