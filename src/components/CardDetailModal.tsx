@@ -6,6 +6,8 @@ import { GitHubService } from '../services/github';
 import { CommentTemplateService } from '../services/commentTemplateService';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { convertGithubEmojis } from '../utils/emojiConverter';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Props {
   card: ProjectCard | null;
@@ -1029,12 +1031,13 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                                   rows={5}
                                 />
                               ) : (
-                                <div className="px-3 py-2 min-h-[120px]">
+                                <div className={`px-3 py-2 ${commentEditorExpanded ? 'min-h-[60vh]' : 'min-h-[120px]'}`}>
                                   {newComment ? (
-                                    <MarkdownRenderer
-                                      html={newComment}
-                                      className="text-sm text-gray-700 dark:text-gray-300"
-                                    />
+                                    <div className="markdown-body text-sm text-gray-700 dark:text-gray-300">
+                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {newComment}
+                                      </ReactMarkdown>
+                                    </div>
                                   ) : (
                                     <p className="text-gray-400 dark:text-gray-500 italic text-sm">
                                       Nada para visualizar
