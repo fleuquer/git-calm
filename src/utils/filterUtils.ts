@@ -24,7 +24,7 @@ export function filterColumns(columns: ProjectColumn[], filter: ViewFilter): Pro
         filteredCards = filteredCards.filter(card => {
           const hasLabel = filter.labels!.some(label =>
             card.labels.some(cardLabel =>
-              cardLabel.name.toLowerCase().includes(label.toLowerCase())
+              cardLabel.name.toLowerCase() === label.toLowerCase()
             )
           );
           return hasLabel;
@@ -36,7 +36,7 @@ export function filterColumns(columns: ProjectColumn[], filter: ViewFilter): Pro
         filteredCards = filteredCards.filter(card => {
           const hasExcludedLabel = filter.excludeLabels!.some(label =>
             card.labels.some(cardLabel =>
-              cardLabel.name.toLowerCase().includes(label.toLowerCase())
+              cardLabel.name.toLowerCase() === label.toLowerCase()
             )
           );
           return !hasExcludedLabel;
