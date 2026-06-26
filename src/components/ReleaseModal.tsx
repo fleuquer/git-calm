@@ -89,7 +89,7 @@ export const ReleaseModal: React.FC<Props> = ({
 
   // Estados para repos extras por card
   const [extraCardRepos, setExtraCardRepos] = useState<Record<string, string[]>>({});
-  const [extraRepoVersions, setExtraRepoVersions] = useState<Record<string, Record<string, string>>>({});
+  const [, setExtraRepoVersions] = useState<Record<string, Record<string, string>>>({});
   const [extraRepoSearch, setExtraRepoSearch] = useState<Record<string, string>>({});
   const [extraRepoSearchOpen, setExtraRepoSearchOpen] = useState<Record<string, boolean>>({});
   const [secRepoTagEnabled, setSecRepoTagEnabled] = useState<Record<string, boolean>>({});
@@ -929,7 +929,6 @@ export const ReleaseModal: React.FC<Props> = ({
                   <div className="space-y-2">
                     {cards.map(({ card, branches, allRepos, effectiveRepo }) => {
                       const isUnmapped = repo === 'Sem Repositório';
-                      const isMultiRepo = allRepos.length > 1;
                       const secondaryRepos = allRepos.filter(r => r !== effectiveRepo);
 
                       return (
