@@ -6,6 +6,7 @@ import { loadRepoGroups, findGroupForRepo, type RepoGroup } from '../utils/repoG
 import { GitHubService } from '../services/github';
 import { CardDetailModal } from './CardDetailModal';
 import { getPeopleForView } from '../utils/viewPeopleMapping';
+import { getReleaseLinkRepo } from '../utils/releaseSettings';
 
 interface Props {
   isOpen: boolean;
@@ -83,6 +84,9 @@ export const ReleaseModal: React.FC<Props> = ({
   const [viewPeople, setViewPeople] = useState<string[]>([]);
   const [cardParticipants, setCardParticipants] = useState<Record<string, { login: string; avatarUrl: string }[]>>({});
 
+  // Controla quais cards estão com o seletor de repo principal aberto
+  const [repoChangeOpen, setRepoChangeOpen] = useState<Set<string>>(new Set());
+
   // Estados para repos extras por card
   const [extraCardRepos, setExtraCardRepos] = useState<Record<string, string[]>>({});
   const [extraRepoVersions, setExtraRepoVersions] = useState<Record<string, Record<string, string>>>({});
@@ -111,6 +115,7 @@ export const ReleaseModal: React.FC<Props> = ({
       setExtraRepoSearch({});
       setExtraRepoSearchOpen({});
       setSecRepoTagEnabled({});
+      setRepoChangeOpen(new Set());
       setDoneRepos(new Set());
       const groups = loadRepoGroups();
       setRepoGroups(groups);
@@ -273,6 +278,22 @@ export const ReleaseModal: React.FC<Props> = ({
       const nextTag = incrementVersion(lastTag);
       tags[secRepo] = nextTag;
       last[secRepo] = lastTag;
+    }));
+
+    // Repos extras adicionados manualmente em step 1
+    const extraReposSet = new Set<string>();
+    cardsByRepo.forEach(({ cards }) => {
+      cards.forEach(({ card }) => {
+        (extraCardRepos[card.id] || []).forEach(r => {
+          if (!tags[r]) extraReposSet.add(r);
+        });
+      });
+    });
+    await Promise.all(Array.from(extraReposSet).map(async r => {
+      const lastTag = await getLastProductionTag(r);
+      const nextTag = incrementVersion(lastTag);
+      tags[r] = nextTag;
+      last[r] = lastTag;
     }));
 
     setSuggestedTags(tags);
@@ -512,43 +533,8 @@ export const ReleaseModal: React.FC<Props> = ({
   };
 
   const getLastProductionTag = async (repo: string): Promise<string | null> => {
-    try {
-      const service = new GitHubService(token);
-      const octokit = service['octokit'];
-
-      const { data } = await octokit.repos.listTags({
-        owner: org,
-        repo: repo,
-        per_page: 100
-      });
-
-      // Filtrar tags que seguem o padrão production-v*
-      const productionTags = data
-        .map(tag => tag.name)
-        .filter(name => name.startsWith('production-v'));
-
-      if (productionTags.length === 0) {
-        return null;
-      }
-
-      // Ordenar tags por versão (simples ordenação alfabética funciona para números)
-      productionTags.sort((a, b) => {
-        const aVersion = a.replace('production-v', '').split('.').map(Number);
-        const bVersion = b.replace('production-v', '').split('.').map(Number);
-
-        for (let i = 0; i < Math.max(aVersion.length, bVersion.length); i++) {
-          const aNum = aVersion[i] || 0;
-          const bNum = bVersion[i] || 0;
-          if (aNum !== bNum) return bNum - aNum; // Ordem decrescente
-        }
-        return 0;
-      });
-
-      return productionTags[0];
-    } catch (error) {
-      console.error(`Erro ao buscar tags do repositório ${repo}:`, error);
-      return null;
-    }
+    const service = new GitHubService(token);
+    return service.getLastProductionTag(org, repo);
   };
 
   const incrementVersion = (lastTag: string | null): string => {
@@ -633,6 +619,7 @@ export const ReleaseModal: React.FC<Props> = ({
 
   const generateReleaseMessageMarkdown = () => {
     const today = new Date().toLocaleDateString('pt-BR');
+    const linkRepoOverride = getReleaseLinkRepo();
 
     let message = `>>> ### 🗓️ Liberação de Versão — ${today}\n`;
 
@@ -646,8 +633,7 @@ export const ReleaseModal: React.FC<Props> = ({
       message += `📦 **${repo}**${versionText}\n`;
 
       selectedRepoCards.forEach(({ card, effectiveRepo, allRepos }) => {
-        // Usar o repo real do card para construir a URL correta
-        const cardRepo = effectiveRepo || allRepos?.[0] || repo;
+        const cardRepo = linkRepoOverride || effectiveRepo || allRepos?.[0] || repo;
         const issueUrl = `https://github.com/${org}/${cardRepo}/issues/${card.number}`;
         message += `- [#${card.number} - ${card.title}](${issueUrl})\n`;
       });
@@ -702,12 +688,12 @@ export const ReleaseModal: React.FC<Props> = ({
       const selectedCardsList = cardsByRepo.flatMap(({ repo, cards }) =>
         cards
           .filter(({ card }) => selectedCards.has(card.id))
-          .map(({ card, branches, effectiveRepo }) => ({ card, branches, repo, effectiveRepo }))
+          .map(({ card, branches, effectiveRepo, allRepos }) => ({ card, branches, repo, effectiveRepo, allRepos }))
       );
 
       console.log(`📦 Processando ${selectedCardsList.length} cards...`);
 
-      for (const { card, repo, effectiveRepo } of selectedCardsList) {
+      for (const { card, repo, effectiveRepo, allRepos } of selectedCardsList) {
         const versionNumber = versionNumbers[repo];
 
         if (!versionNumber) {
@@ -716,34 +702,39 @@ export const ReleaseModal: React.FC<Props> = ({
         }
 
         try {
-          // Usar o repositório da issue do card para o comentário/mover
-          const repoName = card.repo || effectiveRepo;
+          // Repo onde o comentário será postado (issue do card)
+          const commentRepo = card.repo || effectiveRepo;
+          // Nome do repo principal no comentário (repo de versionamento, não o da issue)
+          const primaryRepoLabel = effectiveRepo || card.repo;
 
           console.log(`📝 Card #${card.number}:`, {
-            repoFromCard: card.repo,
-            effectiveRepo,
+            commentRepo,
+            primaryRepoLabel,
             displayGroup: repo,
-            usingRepo: repoName,
             url: card.url
           });
 
+          // Todos os repos secundários: auto-detectados + extras manuais
+          const autoSecondaries = (allRepos || []).filter(r => r !== effectiveRepo);
+          const manualExtras = (extraCardRepos[card.id] || []).filter(r => !autoSecondaries.includes(r));
+          const allSecondaries = [...autoSecondaries, ...manualExtras];
+
           // 2.1. Comentar no card
-          const extras = extraCardRepos[card.id] || [];
           let commentBody: string;
-          if (extras.length === 0) {
+          if (allSecondaries.length === 0) {
             commentBody = `**Liberado na versão ${versionNumber}**\n\n`;
           } else {
             const lines = [`**Liberado na versão:**\n`];
-            lines.push(`- ${repoName}: ${versionNumber}`);
-            extras.forEach(extraRepo => {
-              const extraVersion = extraRepoVersions[card.id]?.[extraRepo] || versionNumber;
-              lines.push(`- ${extraRepo}: ${extraVersion}`);
+            lines.push(`- ${primaryRepoLabel}: ${versionNumber}`);
+            allSecondaries.forEach(secRepo => {
+              const secVersion = versionNumbers[secRepo] || versionNumber;
+              lines.push(`- ${secRepo}: ${secVersion}`);
             });
             commentBody = lines.join('\n') + '\n\n';
           }
 
-          console.log(`💬 Comentando no card #${card.number} no repo ${repoName}...`);
-          await service.addComment(org, repoName, card.number, commentBody);
+          console.log(`💬 Comentando no card #${card.number} no repo ${commentRepo}...`);
+          await service.addComment(org, commentRepo, card.number, commentBody);
           console.log(`   ✅ Comentário adicionado`);
 
           // 2.2. Mover para Produção
@@ -987,80 +978,229 @@ export const ReleaseModal: React.FC<Props> = ({
                                 </div>
                               )}
 
-                              {/* Indicador de múltiplos repos (não em grupo) */}
-                              {isMultiRepo && !isGroup && secondaryRepos.length > 0 && (
-                                <div className="mt-1 flex items-center gap-1 flex-wrap">
-                                  <AlertCircle size={12} className="text-amber-500 shrink-0" />
-                                  <span className="text-xs text-amber-600 dark:text-amber-400">
-                                    Também precisa ser liberado em:
-                                  </span>
-                                  {secondaryRepos.map(r => (
-                                    <span key={r} className="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded font-mono">
-                                      {r}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* Seletor de repo primário para cards multi-repo */}
-                              {(isUnmapped || isMultiRepo) && (
-                                <div className="mt-2 space-y-1">
-                                  {isMultiRepo && !manualRepoMapping[card.id] && (
-                                    <div className="text-xs text-amber-600 dark:text-amber-400 mb-1">
-                                      ⚠️ Card vinculado a múltiplos repos — selecione o repo principal para versionamento:
-                                    </div>
-                                  )}
-                                  <input
-                                    type="text"
-                                    placeholder="Buscar repositório..."
-                                    value={repoFilter[card.id] || ''}
-                                    onChange={(e) => setRepoFilter(prev => ({ ...prev, [card.id]: e.target.value }))}
-                                    className="text-xs w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                                  />
-                                  {repoFilter[card.id] && (
-                                    <div className="max-h-32 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800">
-                                      {allRepositories
-                                        .filter(r =>
-                                          r.toLowerCase().includes(repoFilter[card.id].toLowerCase())
-                                        )
-                                        .slice(0, 10)
-                                        .map(repoName => (
+                              {/* ── Repos de versionamento ── */}
+                              <div className="mt-1.5 space-y-1">
+                                {/* Repo principal */}
+                                {(() => {
+                                  const hasOverride = !!manualRepoMapping[card.id];
+                                  const isSearchOpen = repoChangeOpen.has(card.id);
+                                  return (
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">Repo principal:</span>
+                                        {isUnmapped ? (
+                                          <span className="text-xs text-orange-500 dark:text-orange-400 italic">não identificado</span>
+                                        ) : (
+                                          <span className={`text-xs font-mono px-2 py-0.5 rounded ${
+                                            hasOverride
+                                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                          }`}>
+                                            {effectiveRepo}
+                                          </span>
+                                        )}
+                                        {!isUnmapped && !isSearchOpen && !hasOverride && (
                                           <button
-                                            key={repoName}
-                                            onClick={() => {
-                                              assignCardToRepo(card.id, repoName);
-                                              setRepoFilter(prev => ({ ...prev, [card.id]: '' }));
-                                            }}
-                                            className="w-full text-left px-2 py-1 text-xs hover:bg-blue-100 dark:hover:bg-blue-900 text-gray-900 dark:text-gray-100"
+                                            onClick={() => setRepoChangeOpen(prev => { const s = new Set(prev); s.add(card.id); return s; })}
+                                            className="text-xs text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 underline"
                                           >
-                                            {repoName}
+                                            Alterar
                                           </button>
-                                        ))}
+                                        )}
+                                        {hasOverride && (
+                                          <button
+                                            onClick={() => {
+                                              const m = { ...manualRepoMapping };
+                                              delete m[card.id];
+                                              setManualRepoMapping(m);
+                                              setRepoFilter(prev => ({ ...prev, [card.id]: '' }));
+                                              setRepoChangeOpen(prev => { const s = new Set(prev); s.delete(card.id); return s; });
+                                            }}
+                                            className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 underline"
+                                          >
+                                            Restaurar original
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      {/* Busca para alterar repo principal */}
+                                      {!isUnmapped && isSearchOpen && (
+                                        <div className="space-y-1">
+                                          <div className="flex items-center gap-1.5">
+                                            <input
+                                              type="text"
+                                              placeholder="Buscar repositório..."
+                                              value={repoFilter[card.id] || ''}
+                                              onChange={(e) => setRepoFilter(prev => ({ ...prev, [card.id]: e.target.value }))}
+                                              className="text-xs flex-1 px-2 py-1 border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                              autoFocus
+                                            />
+                                            <button
+                                              onClick={() => {
+                                                setRepoChangeOpen(prev => { const s = new Set(prev); s.delete(card.id); return s; });
+                                                setRepoFilter(prev => ({ ...prev, [card.id]: '' }));
+                                              }}
+                                              className="text-xs text-gray-400 hover:text-gray-600 px-1"
+                                              title="Cancelar"
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                          {repoFilter[card.id] && (
+                                            <div className="max-h-32 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800">
+                                              {allRepositories
+                                                .filter(r => r.toLowerCase().includes(repoFilter[card.id].toLowerCase()))
+                                                .slice(0, 10)
+                                                .map(repoName => (
+                                                  <button
+                                                    key={repoName}
+                                                    onClick={() => {
+                                                      assignCardToRepo(card.id, repoName);
+                                                      setRepoFilter(prev => ({ ...prev, [card.id]: '' }));
+                                                      setRepoChangeOpen(prev => { const s = new Set(prev); s.delete(card.id); return s; });
+                                                    }}
+                                                    className="w-full text-left px-2 py-1 text-xs hover:bg-blue-100 dark:hover:bg-blue-900 text-gray-900 dark:text-gray-100"
+                                                  >
+                                                    {repoName}
+                                                  </button>
+                                                ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
-                                  )}
-                                  {manualRepoMapping[card.id] ? (
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs text-green-600 dark:text-green-400">
-                                        ✓ Repo principal: {manualRepoMapping[card.id]}
-                                      </span>
-                                      <button
-                                        onClick={() => {
-                                          const newMapping = { ...manualRepoMapping };
-                                          delete newMapping[card.id];
-                                          setManualRepoMapping(newMapping);
-                                        }}
-                                        className="text-xs text-red-600 hover:text-red-700"
-                                      >
-                                        Alterar
-                                      </button>
+                                  );
+                                })()}
+
+                                {/* Repos secundários: auto-detectados + adicionados manualmente */}
+                                {(() => {
+                                  const manualExtras = (extraCardRepos[card.id] || []).filter(r => !secondaryRepos.includes(r));
+                                  const allSecondary = [...secondaryRepos, ...manualExtras];
+                                  if (allSecondary.length === 0) return null;
+                                  return (
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      <AlertCircle size={12} className="text-amber-500 shrink-0" />
+                                      <span className="text-xs text-amber-600 dark:text-amber-400">Também liberar em:</span>
+                                      {secondaryRepos.map(r => (
+                                        <span key={r} className="text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded font-mono">
+                                          {r}
+                                        </span>
+                                      ))}
+                                      {manualExtras.map(r => (
+                                        <span key={r} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded font-mono">
+                                          {r}
+                                          <button onClick={() => removeExtraRepo(card.id, r)} title="Remover" className="hover:text-red-600">
+                                            <X size={10} />
+                                          </button>
+                                        </span>
+                                      ))}
                                     </div>
-                                  ) : isMultiRepo ? (
-                                    <div className="text-xs text-gray-500">
-                                      Usando: <span className="font-mono font-medium">{effectiveRepo}</span> (primeiro detectado)
-                                    </div>
-                                  ) : null}
-                                </div>
-                              )}
+                                  );
+                                })()}
+
+                                {/* Seletor de repo principal para cards sem repo */}
+                                {isUnmapped && (
+                                  <div className="mt-1 space-y-1">
+                                    <p className="text-xs text-orange-600 dark:text-orange-400">
+                                      Nenhum repositório detectado — selecione manualmente:
+                                    </p>
+                                    <input
+                                      type="text"
+                                      placeholder="Buscar repositório..."
+                                      value={repoFilter[card.id] || ''}
+                                      onChange={(e) => setRepoFilter(prev => ({ ...prev, [card.id]: e.target.value }))}
+                                      className="text-xs w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                    />
+                                    {repoFilter[card.id] && (
+                                      <div className="max-h-32 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800">
+                                        {allRepositories
+                                          .filter(r => r.toLowerCase().includes(repoFilter[card.id].toLowerCase()))
+                                          .slice(0, 10)
+                                          .map(repoName => (
+                                            <button
+                                              key={repoName}
+                                              onClick={() => {
+                                                assignCardToRepo(card.id, repoName);
+                                                setRepoFilter(prev => ({ ...prev, [card.id]: '' }));
+                                              }}
+                                              className="w-full text-left px-2 py-1 text-xs hover:bg-blue-100 dark:hover:bg-blue-900 text-gray-900 dark:text-gray-100"
+                                            >
+                                              {repoName}
+                                            </button>
+                                          ))}
+                                      </div>
+                                    )}
+                                    {manualRepoMapping[card.id] && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs text-green-600 dark:text-green-400">
+                                          ✓ Repo selecionado: {manualRepoMapping[card.id]}
+                                        </span>
+                                        <button
+                                          onClick={() => {
+                                            const newMapping = { ...manualRepoMapping };
+                                            delete newMapping[card.id];
+                                            setManualRepoMapping(newMapping);
+                                            setRepoFilter(prev => ({ ...prev, [card.id]: '' }));
+                                          }}
+                                          className="text-xs text-red-600 hover:text-red-700"
+                                        >
+                                          Alterar
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Botão: também liberar em outro repo */}
+                                {!isUnmapped && (
+                                  <div>
+                                    <button
+                                      onClick={() => setExtraRepoSearchOpen(prev => ({ ...prev, [card.id]: !prev[card.id] }))}
+                                      className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 hover:underline"
+                                    >
+                                      <Plus size={11} />
+                                      Também liberar em outro repo
+                                    </button>
+                                    {extraRepoSearchOpen[card.id] && (
+                                      <div className="mt-1">
+                                        <input
+                                          type="text"
+                                          value={extraRepoSearch[card.id] || ''}
+                                          onChange={(e) => setExtraRepoSearch(prev => ({ ...prev, [card.id]: e.target.value }))}
+                                          placeholder="Buscar repositório..."
+                                          autoFocus
+                                          className="text-xs w-full px-2 py-1 border border-amber-300 dark:border-amber-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                        />
+                                        {extraRepoSearch[card.id] && (
+                                          <div className="max-h-28 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 mt-0.5">
+                                            {allRepositories
+                                              .filter(r =>
+                                                r.toLowerCase().includes(extraRepoSearch[card.id].toLowerCase()) &&
+                                                !(extraCardRepos[card.id] || []).includes(r) &&
+                                                r !== effectiveRepo &&
+                                                !secondaryRepos.includes(r)
+                                              )
+                                              .slice(0, 8)
+                                              .map(repoName => (
+                                                <button
+                                                  key={repoName}
+                                                  onClick={() => {
+                                                    addExtraRepo(card.id, repoName);
+                                                    setExtraRepoSearch(prev => ({ ...prev, [card.id]: '' }));
+                                                    setExtraRepoSearchOpen(prev => ({ ...prev, [card.id]: false }));
+                                                  }}
+                                                  className="w-full text-left px-2 py-1 text-xs hover:bg-amber-50 dark:hover:bg-amber-900 text-gray-900 dark:text-gray-100"
+                                                >
+                                                  {repoName}
+                                                </button>
+                                              ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
 
                               {/* ── Comentários da issue ── */}
                               {card.repo && (
@@ -1131,68 +1271,6 @@ export const ReleaseModal: React.FC<Props> = ({
                                 </div>
                               )}
 
-                              {/* ── Repos extras para este card ── */}
-                              <div className="mt-2">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  {(extraCardRepos[card.id] || []).length > 0 && (
-                                    <>
-                                      <span className="text-xs text-gray-500 dark:text-gray-400">Repos extras:</span>
-                                      {(extraCardRepos[card.id] || []).map(r => (
-                                        <span key={r} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-full">
-                                          {r}
-                                          <button onClick={() => removeExtraRepo(card.id, r)} title="Remover">
-                                            <X size={10} />
-                                          </button>
-                                        </span>
-                                      ))}
-                                    </>
-                                  )}
-                                  <button
-                                    onClick={() => setExtraRepoSearchOpen(prev => ({ ...prev, [card.id]: !prev[card.id] }))}
-                                    className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-                                    title="Adicionar repositório extra para este card"
-                                  >
-                                    <Plus size={11} />
-                                    Adicionar repo extra
-                                  </button>
-                                </div>
-                                {extraRepoSearchOpen[card.id] && (
-                                  <div className="mt-1">
-                                    <input
-                                      type="text"
-                                      value={extraRepoSearch[card.id] || ''}
-                                      onChange={(e) => setExtraRepoSearch(prev => ({ ...prev, [card.id]: e.target.value }))}
-                                      placeholder="Buscar repositório..."
-                                      autoFocus
-                                      className="text-xs w-full px-2 py-1 border border-indigo-300 dark:border-indigo-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                                    />
-                                    {extraRepoSearch[card.id] && (
-                                      <div className="max-h-28 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 mt-0.5">
-                                        {allRepositories
-                                          .filter(r =>
-                                            r.toLowerCase().includes(extraRepoSearch[card.id].toLowerCase()) &&
-                                            !(extraCardRepos[card.id] || []).includes(r) &&
-                                            r !== effectiveRepo
-                                          )
-                                          .slice(0, 8)
-                                          .map(repoName => (
-                                            <button
-                                              key={repoName}
-                                              onClick={() => {
-                                                addExtraRepo(card.id, repoName);
-                                                setExtraRepoSearch(prev => ({ ...prev, [card.id]: '' }));
-                                                setExtraRepoSearchOpen(prev => ({ ...prev, [card.id]: false }));
-                                              }}
-                                              className="w-full text-left px-2 py-1 text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900 text-gray-900 dark:text-gray-100"
-                                            >
-                                              {repoName}
-                                            </button>
-                                          ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
                             </div>
                           </div>
                         </div>
@@ -1349,21 +1427,22 @@ export const ReleaseModal: React.FC<Props> = ({
 
                 const vscodeUri = getVSCodePath(repo);
 
-                // Repos secundários de cards multi-repo que não foram agrupados
+                // Repos secundários: auto-detectados (branches em outro repo) + extras manuais
                 const secondaryRepoMap: Record<string, string[]> = {};
-                selectedRepoCards.forEach(({ branchesWithRepos, allRepos, effectiveRepo }) => {
+                selectedRepoCards.forEach(({ branchesWithRepos, allRepos, effectiveRepo, card }) => {
+                  // Auto-detectados via branches
                   allRepos.filter(r => r !== effectiveRepo).forEach(secRepo => {
                     const secBranches = branchesWithRepos
                       .filter(b => b.repo === secRepo)
                       .map(b => b.name);
-                    if (secBranches.length > 0) {
-                      if (!secondaryRepoMap[secRepo]) secondaryRepoMap[secRepo] = [];
-                      secBranches.forEach(b => {
-                        if (!secondaryRepoMap[secRepo].includes(b)) {
-                          secondaryRepoMap[secRepo].push(b);
-                        }
-                      });
-                    }
+                    if (!secondaryRepoMap[secRepo]) secondaryRepoMap[secRepo] = [];
+                    secBranches.forEach(b => {
+                      if (!secondaryRepoMap[secRepo].includes(b)) secondaryRepoMap[secRepo].push(b);
+                    });
+                  });
+                  // Extras adicionados manualmente
+                  (extraCardRepos[card.id] || []).forEach(extraRepo => {
+                    if (!(extraRepo in secondaryRepoMap)) secondaryRepoMap[extraRepo] = [];
                   });
                 });
                 const hasSecondaryRepos = Object.keys(secondaryRepoMap).length > 0;
@@ -1457,7 +1536,10 @@ export const ReleaseModal: React.FC<Props> = ({
                         </div>
                         <div className="space-y-2">
                           {Object.entries(secondaryRepoMap).map(([secRepo, secBranches]) => {
-                            const tagEnabled = !!secRepoTagEnabled[secRepo];
+                            // Repos sem branches são manuais: tag ligada por padrão
+                            const tagEnabled = secBranches.length === 0
+                              ? (secRepoTagEnabled[secRepo] !== false)
+                              : !!secRepoTagEnabled[secRepo];
                             const isSecDone = doneRepos.has(`secondary::${secRepo}`);
                             const secSuggested = suggestedTags[secRepo] || versionForTag;
                             const secVersionForTag = versionNumbers[secRepo]
@@ -1693,30 +1775,33 @@ export const ReleaseModal: React.FC<Props> = ({
                       </div>
                     </div>
 
-                    {/* Versões extras por card */}
-                    {selectedRepoCards.some(({ card }) => (extraCardRepos[card.id] || []).length > 0) && (
+                    {/* Versões de repos secundários por card */}
+                    {selectedRepoCards.some(({ card, allRepos, effectiveRepo }) => {
+                      const autoSec = allRepos.filter(r => r !== effectiveRepo);
+                      const manualExtras = (extraCardRepos[card.id] || []).filter(r => !autoSec.includes(r));
+                      return autoSec.length > 0 || manualExtras.length > 0;
+                    }) && (
                       <div className="mb-4 space-y-3 border-t border-dashed border-gray-200 dark:border-gray-700 pt-3">
-                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Versões extras por card</p>
-                        {selectedRepoCards.map(({ card }) => {
-                          const extras = extraCardRepos[card.id] || [];
-                          if (extras.length === 0) return null;
+                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Versões dos repos secundários</p>
+                        {selectedRepoCards.map(({ card, allRepos, effectiveRepo }) => {
+                          const autoSec = allRepos.filter(r => r !== effectiveRepo);
+                          const manualExtras = (extraCardRepos[card.id] || []).filter(r => !autoSec.includes(r));
+                          const allSecondaries = [...autoSec, ...manualExtras];
+                          if (allSecondaries.length === 0) return null;
                           return (
                             <div key={card.id}>
                               <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                                 <span className="font-semibold text-blue-600 dark:text-blue-400">#{card.number}</span> {card.title}
                               </p>
-                              {extras.map(extraRepo => (
-                                <div key={extraRepo} className="flex items-center gap-2 mb-1">
-                                  <span className="text-xs font-mono w-44 shrink-0 truncate text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 px-2 py-1 rounded">
-                                    {extraRepo}
+                              {allSecondaries.map(secRepo => (
+                                <div key={secRepo} className="flex items-center gap-2 mb-1">
+                                  <span className="text-xs font-mono w-44 shrink-0 truncate text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded">
+                                    {secRepo}
                                   </span>
                                   <input
                                     type="text"
-                                    value={extraRepoVersions[card.id]?.[extraRepo] || ''}
-                                    onChange={(e) => setExtraRepoVersions(prev => ({
-                                      ...prev,
-                                      [card.id]: { ...(prev[card.id] || {}), [extraRepo]: e.target.value },
-                                    }))}
+                                    value={versionNumbers[secRepo] || ''}
+                                    onChange={(e) => setVersionNumbers(prev => ({ ...prev, [secRepo]: e.target.value }))}
                                     placeholder="Ex: 1.2.3.4"
                                     className="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-mono"
                                   />
@@ -1729,11 +1814,36 @@ export const ReleaseModal: React.FC<Props> = ({
                     )}
 
                     <div className="text-sm text-gray-600 dark:text-gray-400">
-                      <p className="mb-2">Ações que serão executadas:</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        <li>Comentar em {selectedRepoCards.length} {selectedRepoCards.length === 1 ? 'card' : 'cards'}: "Liberado na versão: {versionNumbers[repo] || 'X'}"</li>
-                        <li>Mover cards para coluna "Produção"</li>
+                      <p className="mb-2 font-medium">Ações que serão executadas:</p>
+                      <ul className="list-disc list-inside space-y-1 mb-3">
+                        <li>Mover {selectedRepoCards.length} {selectedRepoCards.length === 1 ? 'card' : 'cards'} para coluna "Produção"</li>
+                        <li>Comentar em cada card:</li>
                       </ul>
+                      <div className="space-y-2 ml-4">
+                        {selectedRepoCards.map(({ card, effectiveRepo, allRepos }) => {
+                          const primaryLabel = effectiveRepo || card.repo || repo;
+                          const version = versionNumbers[repo] || 'X';
+                          const autoSec = (allRepos || []).filter(r => r !== effectiveRepo);
+                          const manualExtras = (extraCardRepos[card.id] || []).filter(r => !autoSec.includes(r));
+                          const allSec = [...autoSec, ...manualExtras];
+
+                          const commentPreview = allSec.length === 0
+                            ? `**Liberado na versão ${version}**`
+                            : [`**Liberado na versão:**`, ``, `- ${primaryLabel}: ${version}`, ...allSec.map(r => `- ${r}: ${versionNumbers[r] || version}`)].join('\n');
+
+                          return (
+                            <div key={card.id} className="rounded border border-gray-200 dark:border-gray-600">
+                              <div className="flex items-center gap-1.5 px-2 py-1 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-600 text-xs text-gray-500 dark:text-gray-400">
+                                <span className="font-semibold text-blue-600 dark:text-blue-400">#{card.number}</span>
+                                <span className="truncate">{card.title}</span>
+                              </div>
+                              <pre className="px-3 py-2 text-xs text-gray-700 dark:text-gray-300 font-mono whitespace-pre-wrap leading-relaxed bg-white dark:bg-gray-800">
+                                {commentPreview}
+                              </pre>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 );

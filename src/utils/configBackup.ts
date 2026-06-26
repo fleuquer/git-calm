@@ -47,6 +47,8 @@ const CONFIG_KEYS = [
   'dashboard_table_dueDate',
   // Relatório diário
   'dailyReport_includedColumns',
+  // Release
+  'psi_release_link_repo',
 ] as const;
 
 export type ConfigBackup = {

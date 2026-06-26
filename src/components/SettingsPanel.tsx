@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, User, Palette, Layers, Settings as SettingsIcon, Building, Hash, Key, Calendar, GitBranch, MessageSquare, Download, Upload, CheckCircle, AlertCircle, HardDrive, Type } from 'lucide-react';
+import { X, User, Palette, Layers, Settings as SettingsIcon, Building, Hash, Key, Calendar, GitBranch, MessageSquare, Download, Upload, CheckCircle, AlertCircle, HardDrive, Type, Package } from 'lucide-react';
 import { ViewManagerModal } from './ViewManagerModal';
 import { RepoMappingConfig } from './RepoMappingConfig';
 import { TemplateManager } from './TemplateManager';
@@ -8,6 +8,7 @@ import { themes } from '../themes';
 import { GitHubService } from '../services/github';
 import { exportConfig, importConfig } from '../utils/configBackup';
 import { FONT_SIZES, FONT_FAMILIES, getFontSize, getFontFamily, saveFontSize, saveFontFamily, type FontSizeId, type FontFamilyId } from '../utils/fontSettings';
+import { getReleaseLinkRepo, saveReleaseLinkRepo } from '../utils/releaseSettings';
 
 interface Props {
   isOpen: boolean;
@@ -44,13 +45,15 @@ export const SettingsPanel: React.FC<Props> = ({
   allLabels,
   availableTags
 }) => {
-  const [activeTab, setActiveTab] = useState<'account' | 'theme' | 'views' | 'templates' | 'mappings' | 'backup'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'theme' | 'views' | 'templates' | 'mappings' | 'release' | 'backup'>('account');
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [accountInfo, setAccountInfo] = useState<any>(null);
   const [loadingAccountInfo, setLoadingAccountInfo] = useState(false);
   const [currentFontSize, setCurrentFontSize] = useState<FontSizeId>(getFontSize);
   const [currentFontFamily, setCurrentFontFamily] = useState<FontFamilyId>(getFontFamily);
+  const [releaseLinkRepo, setReleaseLinkRepo] = useState<string>(getReleaseLinkRepo);
+  const [releaseLinkRepoSaved, setReleaseLinkRepoSaved] = useState(false);
 
   // Resetar para aba account quando abrir
   useEffect(() => {
@@ -123,6 +126,61 @@ export const SettingsPanel: React.FC<Props> = ({
       );
     }
 
+    if (activeTab === 'release') {
+      return (
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">
+              Configurações de Release
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Personalize o comportamento da geração de release.
+            </p>
+          </div>
+
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-0.5">
+                Repositório para links na mensagem
+              </label>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                Por padrão, os links das issues usam o repositório do próprio card. Se sua equipe centraliza issues em um único repositório, configure aqui para sobrescrever.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={releaseLinkRepo}
+                  onChange={(e) => { setReleaseLinkRepo(e.target.value); setReleaseLinkRepoSaved(false); }}
+                  placeholder="Deixe vazio para usar o repositório do card"
+                  className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-mono"
+                />
+                <button
+                  onClick={() => {
+                    saveReleaseLinkRepo(releaseLinkRepo);
+                    setReleaseLinkRepoSaved(true);
+                    setTimeout(() => setReleaseLinkRepoSaved(false), 2000);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shrink-0"
+                >
+                  {releaseLinkRepoSaved ? <><CheckCircle size={14} /> Salvo!</> : 'Salvar'}
+                </button>
+              </div>
+              {releaseLinkRepo && (
+                <p className="mt-1.5 text-xs text-blue-600 dark:text-blue-400">
+                  Links serão gerados como: <span className="font-mono">.../{releaseLinkRepo}/issues/123</span>
+                </p>
+              )}
+              {!releaseLinkRepo && (
+                <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+                  Links serão gerados usando o repositório de cada card.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (activeTab === 'backup') {
       const CONFIG_LABELS: Record<string, string> = {
         github_views: 'Visualizações (abas)',
@@ -140,6 +198,7 @@ export const SettingsPanel: React.FC<Props> = ({
         'github-project-view-repo-mapping': 'Mapeamento de repos por aba',
         'github-project-tag-repo-mapping': 'Mapeamento tag → repo',
         'github-project-comment-templates': 'Templates de comentário',
+        psi_release_link_repo: 'Repo dos links de release',
       };
 
       const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -565,6 +624,17 @@ export const SettingsPanel: React.FC<Props> = ({
             >
               <SettingsIcon size={16} />
               Mapeamentos
+            </button>
+            <button
+              onClick={() => setActiveTab('release')}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === 'release'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
+            >
+              <Package size={16} />
+              Release
             </button>
             <button
               onClick={() => setActiveTab('backup')}

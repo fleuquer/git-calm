@@ -2017,4 +2017,70 @@ export class GitHubService {
 
     return commits;
   }
+
+  async getLastProductionTag(org: string, repo: string): Promise<string | null> {
+    // refPrefix deve terminar com "/" — exigência da API GraphQL do GitHub.
+    // Usamos query:"production-v" para filtrar apenas as tags que nos interessam.
+    const query = `
+      query($owner: String!, $repo: String!) {
+        repository(owner: $owner, name: $repo) {
+          refs(
+            refPrefix: "refs/tags/"
+            query: "production-v"
+            first: 1
+            orderBy: { field: TAG_COMMIT_DATE, direction: DESC }
+          ) {
+            nodes { name }
+          }
+        }
+      }
+    `;
+    try {
+      const result: any = await this.octokit.graphql(query, { owner: org, repo });
+      return result?.repository?.refs?.nodes?.[0]?.name ?? null;
+    } catch (error) {
+      console.error(`[getLastProductionTag] ERRO GRAPHQL para ${repo}:`, error);
+      // Fallback: pagina todas as tags e compara datas de commit
+      // Amostra início + fim da lista alfabética para cobrir repos com mudança de formato
+      // (ex: v210 → v10.76.419 onde o formato novo fica no final alfabético)
+      try {
+        const allTags = await this.octokit.paginate(this.octokit.repos.listTags, {
+          owner: org,
+          repo,
+          per_page: 100,
+        });
+        const prodEntries = allTags.filter((t: any) => (t.name as string).startsWith('production-v'));
+        if (prodEntries.length === 0) return null;
+        // Pega até 10 do início e 10 do fim da lista alfabética para cobrir ambos os formatos
+        const head = prodEntries.slice(0, 10);
+        const tail = prodEntries.slice(-10);
+        const seen = new Set<string>();
+        const candidates = [...head, ...tail].filter((t: any) => {
+          if (seen.has(t.name)) return false;
+          seen.add(t.name);
+          return true;
+        });
+        const withDates = await Promise.all(
+          candidates.map(async (tag: any) => {
+            try {
+              const { data: commit } = await this.octokit.repos.getCommit({
+                owner: org,
+                repo,
+                ref: tag.commit.sha,
+              });
+              const date = commit.commit.committer?.date || commit.commit.author?.date || '';
+              return { name: tag.name as string, date };
+            } catch {
+              return { name: tag.name as string, date: '' };
+            }
+          })
+        );
+        withDates.sort((a: any, b: any) => b.date.localeCompare(a.date));
+        return withDates[0]?.name ?? null;
+      } catch (fallbackError) {
+        console.error(`[getLastProductionTag] ERRO FALLBACK para ${repo}:`, fallbackError);
+        return null;
+      }
+    }
+  }
 }
