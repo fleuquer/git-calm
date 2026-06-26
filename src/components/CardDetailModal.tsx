@@ -627,7 +627,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                       {showCommentEditor && (
                         <div className={commentEditorExpanded
                           ? 'fixed inset-0 z-[300] bg-white dark:bg-gray-800 flex flex-col'
-                          : 'sticky top-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-50 max-h-[70vh] flex flex-col'
+                          : 'sticky top-0 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-lg z-50 max-h-[70vh] flex flex-col'
                         }>
                           {/* Cabeçalho fixo */}
                           <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
