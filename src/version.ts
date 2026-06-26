@@ -19,6 +19,8 @@ export const CHANGELOG: VersionEntry[] = [
     date: '2026-06-26',
     label: '',
     changes: [
+      { type: 'feat', description: 'Adicionado configuração de repositório personalizado para geração de release' },
+      { type: 'improvement', description: 'Melhorias diversas geração de release' },
       { type: 'improvement', description: 'Melhorias diversas para seção de comentários nos cards' },
       { type: 'feat', description: 'Adicionado opção de reportar bugs e solicitar features diretamente no app' },
       { type: 'feat', description: 'Adicionado numero da versão com modal para detalhes' },
