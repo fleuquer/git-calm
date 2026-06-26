@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ExternalLink, Calendar, Clock, User, Plus, Send, Trash2, GitBranch, GitCommit, Link as LinkIcon, ArrowUpDown, ChevronDown, ChevronUp, CheckCircle, FileText, AlertCircle, MessageSquare, Clipboard, Eye, ArrowRight, Maximize2, Minimize2 } from 'lucide-react';
+import { X, ExternalLink, Calendar, Clock, User, Plus, Send, Trash2, GitBranch, GitCommit, Link as LinkIcon, ArrowUpDown, ChevronDown, ChevronUp, CheckCircle, FileText, AlertCircle, MessageSquare, Clipboard, Eye, ArrowRight, Maximize2, Minimize2, Bold, Italic, Strikethrough, List, ListOrdered, Code, Code2, Quote, Minus, Link2 } from 'lucide-react';
 import type { ProjectCard, ProjectColumn } from '../types';
 import type { CommentTemplate } from '../types/commentTemplates';
 import { GitHubService } from '../services/github';
@@ -109,6 +109,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
   const [moving, setMoving] = useState(false);
   const moveDropdownRef = useRef<HTMLDivElement>(null);
   const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Participantes unificados: comentadores + atores de eventos
   const uniqueParticipants = useMemo(() => {
@@ -124,6 +125,92 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
     }
     return Array.from(seen.values()).sort((a, b) => b.count - a.count);
   }, [details?.comments, details?.events]);
+
+  const applyFormat = (type: string) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = newComment.slice(start, end);
+    const before = newComment.slice(0, start);
+    const after = newComment.slice(end);
+
+    let replacement = '';
+    let cursorOffset = 0;
+
+    const lineStart = before.lastIndexOf('\n') + 1;
+    const currentLine = newComment.slice(lineStart, end);
+
+    switch (type) {
+      case 'bold':
+        replacement = `**${selected || 'texto'}**`;
+        cursorOffset = selected ? replacement.length : 2;
+        break;
+      case 'italic':
+        replacement = `_${selected || 'texto'}_`;
+        cursorOffset = selected ? replacement.length : 1;
+        break;
+      case 'strike':
+        replacement = `~~${selected || 'texto'}~~`;
+        cursorOffset = selected ? replacement.length : 2;
+        break;
+      case 'code':
+        replacement = `\`${selected || 'código'}\``;
+        cursorOffset = selected ? replacement.length : 1;
+        break;
+      case 'codeblock':
+        replacement = `\`\`\`\n${selected || 'código'}\n\`\`\``;
+        cursorOffset = selected ? replacement.length : 4;
+        break;
+      case 'h1':
+        replacement = `# ${currentLine.replace(/^#+\s*/, '') || 'Título'}`;
+        setNewComment(newComment.slice(0, lineStart) + replacement + after);
+        requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(lineStart + replacement.length, lineStart + replacement.length); });
+        return;
+      case 'h2':
+        replacement = `## ${currentLine.replace(/^#+\s*/, '') || 'Título'}`;
+        setNewComment(newComment.slice(0, lineStart) + replacement + after);
+        requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(lineStart + replacement.length, lineStart + replacement.length); });
+        return;
+      case 'h3':
+        replacement = `### ${currentLine.replace(/^#+\s*/, '') || 'Título'}`;
+        setNewComment(newComment.slice(0, lineStart) + replacement + after);
+        requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(lineStart + replacement.length, lineStart + replacement.length); });
+        return;
+      case 'quote':
+        replacement = `> ${selected || 'citação'}`;
+        cursorOffset = selected ? replacement.length : 2;
+        break;
+      case 'ul':
+        replacement = selected
+          ? selected.split('\n').map(l => `- ${l}`).join('\n')
+          : `- item`;
+        cursorOffset = selected ? replacement.length : 2;
+        break;
+      case 'ol':
+        replacement = selected
+          ? selected.split('\n').map((l, i) => `${i + 1}. ${l}`).join('\n')
+          : `1. item`;
+        cursorOffset = selected ? replacement.length : 3;
+        break;
+      case 'link':
+        replacement = selected ? `[${selected}](url)` : `[texto](url)`;
+        cursorOffset = selected ? selected.length + 3 : 6;
+        break;
+      case 'hr':
+        replacement = `\n---\n`;
+        cursorOffset = replacement.length;
+        break;
+      default:
+        return;
+    }
+
+    const next = before + replacement + after;
+    setNewComment(next);
+    const pos = start + cursorOffset;
+    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(pos, pos); });
+  };
 
   type TimelineItem =
     | { kind: 'comment'; id: string; author: string; authorAvatar: string; body: string; createdAt: string }
@@ -1020,18 +1107,93 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                               </button>
                             </div>
 
+                            {/* Toolbar de formatação */}
+                            {!showPreview && (
+                              <div className="flex items-center gap-0.5 px-2 py-1 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 flex-wrap">
+                                {/* Headings */}
+                                {(['h1','h2','h3'] as const).map(h => (
+                                  <button key={h} type="button" onClick={() => applyFormat(h)}
+                                    className="px-1.5 py-0.5 text-xs font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 rounded transition-colors"
+                                    title={`Título ${h.slice(1)}`}>
+                                    {h.toUpperCase()}
+                                  </button>
+                                ))}
+                                <span className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-0.5" />
+                                {/* Inline formatting */}
+                                <button type="button" onClick={() => applyFormat('bold')}
+                                  className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 rounded transition-colors"
+                                  title="Negrito (Ctrl+B)">
+                                  <Bold size={13} />
+                                </button>
+                                <button type="button" onClick={() => applyFormat('italic')}
+                                  className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 rounded transition-colors"
+                                  title="Itálico (Ctrl+I)">
+                                  <Italic size={13} />
+                                </button>
+                                <button type="button" onClick={() => applyFormat('strike')}
+                                  className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 rounded transition-colors"
+                                  title="Tachado">
+                                  <Strikethrough size={13} />
+                                </button>
+                                <button type="button" onClick={() => applyFormat('code')}
+                                  className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 rounded transition-colors"
+                                  title="Código inline">
+                                  <Code size={13} />
+                                </button>
+                                <span className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-0.5" />
+                                {/* Block formatting */}
+                                <button type="button" onClick={() => applyFormat('quote')}
+                                  className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 rounded transition-colors"
+                                  title="Citação">
+                                  <Quote size={13} />
+                                </button>
+                                <button type="button" onClick={() => applyFormat('ul')}
+                                  className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 rounded transition-colors"
+                                  title="Lista">
+                                  <List size={13} />
+                                </button>
+                                <button type="button" onClick={() => applyFormat('ol')}
+                                  className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 rounded transition-colors"
+                                  title="Lista numerada">
+                                  <ListOrdered size={13} />
+                                </button>
+                                <span className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-0.5" />
+                                {/* Extra */}
+                                <button type="button" onClick={() => applyFormat('codeblock')}
+                                  className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 rounded transition-colors"
+                                  title="Bloco de código">
+                                  <Code2 size={13} />
+                                </button>
+                                <button type="button" onClick={() => applyFormat('link')}
+                                  className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 rounded transition-colors"
+                                  title="Link">
+                                  <Link2 size={13} />
+                                </button>
+                                <button type="button" onClick={() => applyFormat('hr')}
+                                  className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 rounded transition-colors"
+                                  title="Linha horizontal">
+                                  <Minus size={13} />
+                                </button>
+                              </div>
+                            )}
+
                             {/* Conteúdo do editor */}
                             <div className="bg-white dark:bg-gray-800">
                               {!showPreview ? (
                                 <textarea
+                                  ref={textareaRef}
                                   value={newComment}
                                   onChange={(e) => setNewComment(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); applyFormat('bold'); }
+                                    if ((e.ctrlKey || e.metaKey) && e.key === 'i') { e.preventDefault(); applyFormat('italic'); }
+                                  }}
                                   placeholder="Adicionar um comentário... (suporta Markdown)"
-                                  className={`w-full px-3 py-2 bg-transparent text-gray-900 dark:text-gray-100 text-sm resize-y focus:outline-none ${commentEditorExpanded ? 'min-h-[60vh]' : 'min-h-[120px]'}`}
+                                  className={`w-full px-3 py-2 bg-transparent text-gray-900 dark:text-gray-100 text-sm resize-y focus:outline-none ${commentEditorExpanded ? 'min-h-[60vh]' : 'min-h-[300px]'}`}
                                   rows={5}
                                 />
                               ) : (
-                                <div className={`px-3 py-2 ${commentEditorExpanded ? 'min-h-[60vh]' : 'min-h-[120px]'}`}>
+                                <div className={`px-3 py-2 ${commentEditorExpanded ? 'min-h-[60vh]' : 'min-h-[300px]'}`}>
                                   {newComment ? (
                                     <div className="markdown-body text-sm text-gray-700 dark:text-gray-300">
                                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
