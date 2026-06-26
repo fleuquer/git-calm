@@ -11,12 +11,14 @@ import type { ActivityMonitorSettings } from './components/ActivityLogButton';
 import { ReleaseModal } from './components/ReleaseModal';
 import { DailyReportModal } from './components/DailyReportModal';
 import { DashboardModal } from './components/DashboardModal';
+import { ChangelogModal } from './components/ChangelogModal';
+import { CURRENT_VERSION, VERSION_STORAGE_KEY } from './version';
 import { NotificationBell } from './components/NotificationBell';
 import { NotificationAlertModal, type AlertItem } from './components/NotificationAlertModal';
 import { NotificationDetailModal } from './components/NotificationDetailModal';
 import { GitHubService } from './services/github';
 import type { ProjectColumn as ProjectColumnType, ViewTab, ProjectCard } from './types';
-import { RefreshCw, GitBranch, Settings as SettingsIcon, Filter, Package, FileText, SlidersHorizontal, Layers, Check, BarChart2 } from 'lucide-react';
+import { RefreshCw, GitBranch, Settings as SettingsIcon, Filter, Package, FileText, SlidersHorizontal, Layers, Check, BarChart2, ExternalLink } from 'lucide-react';
 import { CardSearchBar } from './components/CardSearchBar';
 import { DEFAULT_VIEWS } from './utils/defaultViews';
 import { getPeopleForView } from './utils/viewPeopleMapping';
@@ -134,6 +136,20 @@ function App() {
   });
   const [alertQueue, setAlertQueue] = useState<AlertItem[]>([]);
   const [notifModalQueue, setNotifModalQueue] = useState<GithubNotification[]>([]);
+
+  const [isChangelogOpen, setIsChangelogOpen] = useState(false);
+  const [hasNewVersion, setHasNewVersion] = useState(() => {
+    const lastSeen = localStorage.getItem(VERSION_STORAGE_KEY);
+    return lastSeen !== CURRENT_VERSION;
+  });
+
+  const handleVersionClick = () => {
+    setIsChangelogOpen(true);
+    if (hasNewVersion) {
+      setHasNewVersion(false);
+      localStorage.setItem(VERSION_STORAGE_KEY, CURRENT_VERSION);
+    }
+  };
 
   // Notificações que abrem o modal grande (menções e comentários)
   const MODAL_REASONS = new Set(['mention', 'team_mention', 'comment']);
@@ -1049,6 +1065,38 @@ function App() {
         )}
       </main>
 
+      {/* Footer */}
+      <footer className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-1.5 px-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <img src="/favicon.svg" alt="git-calm" className="w-4 h-4" />
+            <span className="text-xs font-mono font-bold" style={{ color: '#2dd4bf' }}>Git</span>
+            <span className="text-xs font-mono font-light text-gray-400 dark:text-gray-500" style={{ marginLeft: '-4px' }}>calm</span>
+          </div>
+          <span className="text-gray-300 dark:text-gray-700 text-xs select-none">·</span>
+          <a
+            href="https://github.com/fleuquer/git-calm/issues/new"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-600 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+          >
+            <ExternalLink size={10} />
+            Reportar bug
+          </a>
+        </div>
+        <button
+          onClick={handleVersionClick}
+          className="flex items-center gap-1.5 text-xs font-mono text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+        >
+          v{CURRENT_VERSION}
+          {hasNewVersion && (
+            <span className="px-1.5 py-0.5 bg-blue-500 text-white rounded-full text-[10px] font-semibold animate-pulse">
+              Novidades
+            </span>
+          )}
+        </button>
+      </footer>
+
       {/* Settings Panel */}
       <SettingsPanel
         isOpen={isSettingsPanelOpen}
@@ -1143,6 +1191,12 @@ function App() {
         onDismiss={id => setNotifModalQueue(prev => prev.filter(n => n.id !== id))}
         onDismissAll={() => setNotifModalQueue([])}
         onOpenCard={handleAlertOpen}
+      />
+
+      {/* Changelog Modal */}
+      <ChangelogModal
+        isOpen={isChangelogOpen}
+        onClose={() => setIsChangelogOpen(false)}
       />
     </div>
   );
