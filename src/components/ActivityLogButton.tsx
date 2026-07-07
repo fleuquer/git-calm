@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   History, Plus, Edit, Trash2, Check, Trash, X,
-  CircleX, CircleDot, GitMerge, Calendar, MessageSquare, Settings2,
+  CircleX, CircleDot, GitMerge, Calendar, MessageSquare,
   UserCheck, Tag, Type, ArrowRightLeft,
 } from 'lucide-react';
 import type { CardChange } from '../hooks/useRealtimeUpdates';
@@ -27,6 +27,9 @@ export interface ActivityMonitorSettings {
   trackIssueState: boolean;
   trackDueDate: boolean;
   trackComments: boolean;
+  soundEnabled: boolean;
+  soundVolume: number;
+  systemNotificationsEnabled: boolean;
 }
 
 export const DEFAULT_ACTIVITY_SETTINGS: ActivityMonitorSettings = {
@@ -39,6 +42,9 @@ export const DEFAULT_ACTIVITY_SETTINGS: ActivityMonitorSettings = {
   trackIssueState: true,
   trackDueDate: true,
   trackComments: false,
+  soundEnabled: false,
+  soundVolume: 0.5,
+  systemNotificationsEnabled: false,
 };
 
 interface Props {
@@ -199,8 +205,6 @@ interface ButtonProps extends Props {
   onMarkAllRead: () => void;
   onMarkRead: (id: string) => void;
   onClearAll: () => void;
-  settings: ActivityMonitorSettings;
-  onSettingsChange: (s: ActivityMonitorSettings) => void;
 }
 
 export const ActivityLogButton: React.FC<ButtonProps> = ({
@@ -210,11 +214,8 @@ export const ActivityLogButton: React.FC<ButtonProps> = ({
   onMarkAllRead,
   onMarkRead,
   onClearAll,
-  settings,
-  onSettingsChange,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -285,17 +286,6 @@ export const ActivityLogButton: React.FC<ButtonProps> = ({
               )}
             </div>
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => setShowSettings(v => !v)}
-                className={`p-1 rounded transition-colors ${
-                  showSettings
-                    ? 'text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30'
-                    : 'text-gray-400 dark:text-gray-500 hover:text-blue-500 dark:hover:text-blue-400'
-                }`}
-                title="Configurar monitoramento"
-              >
-                <Settings2 size={13} />
-              </button>
               {unreadCount > 0 && (
                 <button
                   onClick={onMarkAllRead}
@@ -316,38 +306,6 @@ export const ActivityLogButton: React.FC<ButtonProps> = ({
               )}
             </div>
           </div>
-
-          {/* Painel de settings */}
-          {showSettings && (
-            <div className="border-b border-gray-100 dark:border-gray-700 px-3 py-2.5 bg-gray-50 dark:bg-gray-800/60 shrink-0">
-              <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">O que monitorar</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                {([
-                  ['trackAdded',     'Card adicionado'],
-                  ['trackMoved',     'Card movido'],
-                  ['trackRemoved',   'Card removido'],
-                  ['trackAssignees', 'Responsáveis'],
-                  ['trackLabels',    'Labels'],
-                  ['trackTitle',     'Título'],
-                  ['trackIssueState','Estado (aberto/fechado)'],
-                  ['trackDueDate',   'Prazo'],
-                  ['trackComments',  'Comentários novos'],
-                ] as [keyof ActivityMonitorSettings, string][]).map(([key, label]) => (
-                  <label key={key} className="flex items-center gap-1.5 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={settings[key]}
-                      onChange={e => onSettingsChange({ ...settings, [key]: e.target.checked })}
-                      className="w-3 h-3 rounded accent-amber-500"
-                    />
-                    <span className="text-xs text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white">
-                      {label}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Lista */}
           <div className="overflow-y-auto flex-1">

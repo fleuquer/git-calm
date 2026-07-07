@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { X, GitBranch, Plus, Edit, Trash2 } from 'lucide-react';
 import type { CardChange } from '../hooks/useRealtimeUpdates';
+import type { ActivityMonitorSettings } from './ActivityLogButton';
 import { playNotificationSound } from '../utils/notificationSounds';
+import { sendSystemNotification } from '../utils/systemNotifications';
 
 interface ActivityNotification {
   id: string;
@@ -13,18 +15,14 @@ interface Props {
   changes: CardChange[];
   onDismiss?: (id: string) => void;
   autoHideMs?: number;
-  soundEnabled?: boolean;
-  soundVolume?: number;
-  soundActivity?: boolean;
+  settings: Pick<ActivityMonitorSettings, 'soundEnabled' | 'soundVolume' | 'systemNotificationsEnabled'>;
 }
 
 export const ActivityNotifications: React.FC<Props> = ({
   changes,
   onDismiss,
   autoHideMs = 5000,
-  soundEnabled = false,
-  soundVolume = 0.5,
-  soundActivity = true,
+  settings,
 }) => {
   const [notifications, setNotifications] = useState<ActivityNotification[]>([]);
 
@@ -39,18 +37,31 @@ export const ActivityNotifications: React.FC<Props> = ({
 
       setNotifications(prev => [...newNotifications, ...prev].slice(0, 5)); // Manter apenas 5
 
+      // Notificação do sistema operacional
+      if (settings.systemNotificationsEnabled) {
+        const first = changes[0];
+        const typeLabel =
+          first.type === 'added' ? 'Card adicionado' :
+          first.type === 'moved' ? 'Card movido' :
+          first.type === 'updated' ? 'Card atualizado' : 'Card removido';
+        const cardTitle = first.card.title.length > 60
+          ? `${first.card.title.substring(0, 60)}…`
+          : first.card.title;
+        sendSystemNotification('Git Calm', `${typeLabel}: ${cardTitle}`);
+      }
+
       // Tocar som para a mudança mais recente
-      if (soundEnabled && soundActivity) {
+      if (settings.soundEnabled) {
         const firstType = changes[0]?.type;
         switch (firstType) {
-          case 'added':   playNotificationSound('activity_added',   soundVolume); break;
-          case 'moved':   playNotificationSound('activity_moved',   soundVolume); break;
-          case 'updated': playNotificationSound('activity_updated', soundVolume); break;
-          case 'removed': playNotificationSound('activity_removed', soundVolume); break;
+          case 'added':   playNotificationSound('activity_added',   settings.soundVolume); break;
+          case 'moved':   playNotificationSound('activity_moved',   settings.soundVolume); break;
+          case 'updated': playNotificationSound('activity_updated', settings.soundVolume); break;
+          case 'removed': playNotificationSound('activity_removed', settings.soundVolume); break;
         }
       }
     }
-  }, [changes, soundEnabled, soundVolume, soundActivity]);
+  }, [changes, settings]);
 
   // Auto-hide após timeout
   useEffect(() => {

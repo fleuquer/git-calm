@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { ProjectColumn } from '../types';
 import { playNotificationSound } from '../utils/notificationSounds';
+import { sendSystemNotification } from '../utils/systemNotifications';
 
 export interface GithubNotification {
   id: string;
@@ -30,7 +31,7 @@ export interface NotificationSettings {
   soundMentions: boolean;
   soundComments: boolean;
   soundAssignments: boolean;
-  soundActivity: boolean;    // sons para atividades de cards
+  systemNotificationsEnabled: boolean;
 }
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
@@ -45,7 +46,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   soundMentions: true,
   soundComments: true,
   soundAssignments: true,
-  soundActivity: true,
+  systemNotificationsEnabled: false,
 };
 
 function parseIssueNumber(url: string): number | undefined {
@@ -180,6 +181,19 @@ export function useGithubNotifications({
 
       if (newAlertable.length > 0) {
         onNewAlertable(newAlertable);
+
+        // Notificação do sistema operacional
+        if (settings.systemNotificationsEnabled) {
+          const first = newAlertable[0];
+          const reasonLabel =
+            first.reason === 'mention' || first.reason === 'team_mention' ? 'Menção' :
+            first.reason === 'comment' ? 'Comentário' :
+            first.reason === 'assign' ? 'Atribuição' : 'Notificação';
+          const body = newAlertable.length === 1
+            ? `${reasonLabel} em ${first.repo}`
+            : `${newAlertable.length} novas notificações no GitHub`;
+          sendSystemNotification('Git Calm', body);
+        }
 
         // Tocar som de notificação (prioridade: menção > comentário > atribuição)
         if (settings.soundEnabled) {

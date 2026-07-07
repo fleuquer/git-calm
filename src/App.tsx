@@ -182,6 +182,11 @@ function App() {
     localStorage.setItem('notification_settings', JSON.stringify(newSettings));
   };
 
+  const handleActivitySettings = (newSettings: ActivityMonitorSettings) => {
+    setActivitySettings(newSettings);
+    try { localStorage.setItem('activity_monitor_settings', JSON.stringify(newSettings)); } catch { /* quota */ }
+  };
+
   const { notifications, unreadCount, isFetching: isNotifFetching, lastError: notifError, fetchNotifications, markAsRead, markAllAsRead } =
     useGithubNotifications({
       token,
@@ -845,11 +850,9 @@ function App() {
                 unreadCount={unreadCount}
                 isFetching={isNotifFetching}
                 lastError={notifError}
-                settings={notificationSettings}
                 onMarkAsRead={markAsRead}
                 onMarkAllAsRead={markAllAsRead}
                 onRefresh={fetchNotifications}
-                onSettingsChange={handleNotificationSettings}
                 onOpenNotification={handleOpenNotification}
                 allCards={[...columns.flatMap(col => col.cards), ...archivedCards]}
                 token={token}
@@ -863,11 +866,6 @@ function App() {
                 onMarkAllRead={markAllActivityRead}
                 onMarkRead={markActivityRead}
                 onClearAll={clearActivityLog}
-                settings={activitySettings}
-                onSettingsChange={(s: ActivityMonitorSettings) => {
-                  setActivitySettings(s);
-                  try { localStorage.setItem('activity_monitor_settings', JSON.stringify(s)); } catch { /* quota */ }
-                }}
               />
 
               {/* Menu de opções */}
@@ -1112,6 +1110,10 @@ function App() {
         allStatuses={allStatuses}
         allLabels={allLabels}
         availableTags={allLabels}
+        notificationSettings={notificationSettings}
+        onNotificationSettingsChange={handleNotificationSettings}
+        activitySettings={activitySettings}
+        onActivitySettingsChange={handleActivitySettings}
       />
 
       {/* Filter Panel */}
@@ -1172,9 +1174,7 @@ function App() {
         changes={recentChanges}
         onDismiss={() => setRecentChanges([])}
         autoHideMs={5000}
-        soundEnabled={notificationSettings.soundEnabled}
-        soundVolume={notificationSettings.soundVolume}
-        soundActivity={notificationSettings.soundActivity}
+        settings={activitySettings}
       />
 
       {/* MSN-style notification alerts (para atribuições e outros) */}

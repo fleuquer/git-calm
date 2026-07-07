@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Bell, Check, CheckCheck, MessageCircle, AtSign, UserCheck, GitPullRequest, AlertCircle, RefreshCw, Settings2, ExternalLink, ListChecks, Square, CheckSquare, ArrowUpNarrowWide, ArrowDownNarrowWide, Volume2, VolumeX, Play } from 'lucide-react';
-import type { GithubNotification, NotificationSettings } from '../hooks/useGithubNotifications';
-import { playNotificationSound } from '../utils/notificationSounds';
+import { Bell, Check, CheckCheck, MessageCircle, AtSign, UserCheck, GitPullRequest, AlertCircle, RefreshCw, ExternalLink, ListChecks, Square, CheckSquare, ArrowUpNarrowWide, ArrowDownNarrowWide } from 'lucide-react';
+import type { GithubNotification } from '../hooks/useGithubNotifications';
 import type { ProjectCard } from '../types';
 
 interface Props {
@@ -9,11 +8,9 @@ interface Props {
   unreadCount: number;
   isFetching: boolean;
   lastError: string | null;
-  settings: NotificationSettings;
   onMarkAsRead: (threadId: string) => void;
   onMarkAllAsRead: () => void;
   onRefresh: () => void;
-  onSettingsChange: (settings: NotificationSettings) => void;
   onOpenNotification: (notification: GithubNotification) => void;
   // Cards disponíveis apenas para exibir status/issueState na lista
   allCards: ProjectCard[];
@@ -68,17 +65,14 @@ export const NotificationBell: React.FC<Props> = ({
   unreadCount,
   isFetching,
   lastError,
-  settings,
   onMarkAsRead,
   onMarkAllAsRead,
   onRefresh,
-  onSettingsChange,
   onOpenNotification,
   allCards,
   token,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Cache: notification.id -> issueState (para notifs sem card local)
@@ -156,7 +150,6 @@ export const NotificationBell: React.FC<Props> = ({
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsOpen(false);
-        setShowSettings(false);
         exitSelectionMode();
       }
     };
@@ -187,7 +180,7 @@ export const NotificationBell: React.FC<Props> = ({
     <div ref={dropdownRef} className="relative">
       {/* Botão do sino */}
       <button
-        onClick={() => { setIsOpen(v => !v); setShowSettings(false); }}
+        onClick={() => setIsOpen(v => !v)}
         className={`relative flex items-center justify-center w-8 h-8 rounded-md transition-all ${
           isOpen
             ? 'bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-white'
@@ -238,7 +231,7 @@ export const NotificationBell: React.FC<Props> = ({
               {/* Botão modo seleção */}
               {notifications.length > 0 && (
                 <button
-                  onClick={() => { setIsSelecting(v => !v); setSelectedIds(new Set()); setShowSettings(false); }}
+                  onClick={() => { setIsSelecting(v => !v); setSelectedIds(new Set()); }}
                   className={`p-1 rounded transition-colors ${
                     isSelecting
                       ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
@@ -249,17 +242,6 @@ export const NotificationBell: React.FC<Props> = ({
                   <ListChecks size={13} />
                 </button>
               )}
-              <button
-                onClick={() => { setShowSettings(v => !v); setIsSelecting(false); setSelectedIds(new Set()); }}
-                className={`p-1 rounded transition-colors ${
-                  showSettings
-                    ? 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200'
-                    : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
-                }`}
-                title="Configurações de notificações"
-              >
-                <Settings2 size={13} />
-              </button>
               <button
                 onClick={onRefresh}
                 className="p-1 rounded text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
@@ -278,147 +260,6 @@ export const NotificationBell: React.FC<Props> = ({
               )}
             </div>
           </div>
-
-          {/* Painel de configurações */}
-          {showSettings && (
-            <div className="px-3 py-2.5 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 shrink-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">
-                Alertas em tela (estilo MSN)
-              </p>
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-2 cursor-pointer group">
-                  <div
-                    onClick={() => onSettingsChange({ ...settings, enabled: !settings.enabled })}
-                    className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer ${
-                      settings.enabled ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
-                    }`}
-                  >
-                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${
-                      settings.enabled ? 'translate-x-4' : 'translate-x-0.5'
-                    }`} />
-                  </div>
-                  <span className="text-xs text-gray-700 dark:text-gray-300">Notificações ativas</span>
-                </label>
-
-                {settings.enabled && (
-                  <>
-                    <label className="flex items-center gap-2 cursor-pointer ml-1">
-                      <div
-                        onClick={() => onSettingsChange({ ...settings, popupMentions: !settings.popupMentions })}
-                        className={`relative w-7 h-3.5 rounded-full transition-colors cursor-pointer ${
-                          settings.popupMentions ? 'bg-purple-500' : 'bg-gray-300 dark:bg-gray-600'
-                        }`}
-                      >
-                        <div className={`absolute top-0.5 w-2.5 h-2.5 bg-white rounded-full shadow transition-transform ${
-                          settings.popupMentions ? 'translate-x-3.5' : 'translate-x-0.5'
-                        }`} />
-                      </div>
-                      <AtSign size={11} className="text-purple-500" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Popup para menções</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer ml-1">
-                      <div
-                        onClick={() => onSettingsChange({ ...settings, popupComments: !settings.popupComments })}
-                        className={`relative w-7 h-3.5 rounded-full transition-colors cursor-pointer ${
-                          settings.popupComments ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
-                        }`}
-                      >
-                        <div className={`absolute top-0.5 w-2.5 h-2.5 bg-white rounded-full shadow transition-transform ${
-                          settings.popupComments ? 'translate-x-3.5' : 'translate-x-0.5'
-                        }`} />
-                      </div>
-                      <MessageCircle size={11} className="text-blue-500" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Popup p/ comentários (cards seus)</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer ml-1">
-                      <div
-                        onClick={() => onSettingsChange({ ...settings, popupAssignments: !settings.popupAssignments })}
-                        className={`relative w-7 h-3.5 rounded-full transition-colors cursor-pointer ${
-                          settings.popupAssignments ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'
-                        }`}
-                      >
-                        <div className={`absolute top-0.5 w-2.5 h-2.5 bg-white rounded-full shadow transition-transform ${
-                          settings.popupAssignments ? 'translate-x-3.5' : 'translate-x-0.5'
-                        }`} />
-                      </div>
-                      <UserCheck size={11} className="text-green-500" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">Popup para atribuições</span>
-                    </label>
-                  </>
-                )}
-              </div>
-
-              {/* ── Sons ── */}
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-3 mb-2">
-                Sons
-              </p>
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <div
-                    onClick={() => onSettingsChange({ ...settings, soundEnabled: !settings.soundEnabled })}
-                    className={`relative w-8 h-4 rounded-full transition-colors cursor-pointer ${
-                      settings.soundEnabled ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
-                    }`}
-                  >
-                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${
-                      settings.soundEnabled ? 'translate-x-4' : 'translate-x-0.5'
-                    }`} />
-                  </div>
-                  {settings.soundEnabled
-                    ? <Volume2 size={13} className="text-blue-500" />
-                    : <VolumeX size={13} className="text-gray-400" />}
-                  <span className="text-xs text-gray-700 dark:text-gray-300">Sons ativos</span>
-                </label>
-
-                {settings.soundEnabled && (
-                  <>
-                    {/* Volume */}
-                    <div className="flex items-center gap-2 ml-1">
-                      <Volume2 size={10} className="text-gray-400 shrink-0" />
-                      <input
-                        type="range"
-                        min="0" max="100"
-                        value={Math.round((settings.soundVolume ?? 0.5) * 100)}
-                        onChange={e => onSettingsChange({ ...settings, soundVolume: parseInt(e.target.value) / 100 })}
-                        className="flex-1 h-1 accent-blue-500 cursor-pointer"
-                      />
-                      <span className="text-[10px] text-gray-500 w-7 text-right">{Math.round((settings.soundVolume ?? 0.5) * 100)}%</span>
-                    </div>
-
-                    {/* Por tipo */}
-                    {([
-                      { key: 'soundMentions',    label: 'Menções',           sound: 'mention'          as const, color: 'bg-purple-500', icon: <AtSign size={11} className="text-purple-500" /> },
-                      { key: 'soundComments',    label: 'Comentários',       sound: 'comment'          as const, color: 'bg-blue-500',   icon: <MessageCircle size={11} className="text-blue-500" /> },
-                      { key: 'soundAssignments', label: 'Atribuições',       sound: 'assign'           as const, color: 'bg-green-500',  icon: <UserCheck size={11} className="text-green-500" /> },
-                      { key: 'soundActivity',    label: 'Atividades (cards)', sound: 'activity_moved'   as const, color: 'bg-yellow-500', icon: <Bell size={11} className="text-yellow-500" /> },
-                    ] as const).map(({ key, label, sound, color, icon }) => (
-                      <label key={key} className="flex items-center gap-2 cursor-pointer ml-1">
-                        <div
-                          onClick={() => onSettingsChange({ ...settings, [key]: !settings[key] })}
-                          className={`relative w-7 h-3.5 rounded-full transition-colors cursor-pointer ${
-                            settings[key] ? color : 'bg-gray-300 dark:bg-gray-600'
-                          }`}
-                        >
-                          <div className={`absolute top-0.5 w-2.5 h-2.5 bg-white rounded-full shadow transition-transform ${
-                            settings[key] ? 'translate-x-3.5' : 'translate-x-0.5'
-                          }`} />
-                        </div>
-                        {icon}
-                        <span className="text-xs text-gray-600 dark:text-gray-400 flex-1">{label}</span>
-                        <button
-                          onClick={() => playNotificationSound(sound, settings.soundVolume ?? 0.5)}
-                          className="p-0.5 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                          title="Testar som"
-                        >
-                          <Play size={9} />
-                        </button>
-                      </label>
-                    ))}
-                  </>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Erro */}
           {lastError && (

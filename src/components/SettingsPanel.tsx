@@ -1,14 +1,34 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, User, Palette, Layers, Settings as SettingsIcon, Building, Hash, Key, Calendar, GitBranch, MessageSquare, Download, Upload, CheckCircle, AlertCircle, HardDrive, Type, Package } from 'lucide-react';
+import { X, User, Palette, Layers, Settings as SettingsIcon, Building, Hash, Key, Calendar, GitBranch, MessageSquare, Download, Upload, CheckCircle, AlertCircle, HardDrive, Type, Package, Bell, AtSign, UserCheck, Volume2, VolumeX, Play, Monitor, History } from 'lucide-react';
 import { ViewManagerModal } from './ViewManagerModal';
 import { RepoMappingConfig } from './RepoMappingConfig';
 import { TemplateManager } from './TemplateManager';
 import type { ViewTab } from '../types';
+import type { NotificationSettings } from '../hooks/useGithubNotifications';
+import type { ActivityMonitorSettings } from './ActivityLogButton';
 import { themes } from '../themes';
 import { GitHubService } from '../services/github';
 import { exportConfig, importConfig } from '../utils/configBackup';
+import { playNotificationSound } from '../utils/notificationSounds';
+import { getSystemNotificationPermission, requestSystemNotificationPermission } from '../utils/systemNotifications';
 import { FONT_SIZES, FONT_FAMILIES, getFontSize, getFontFamily, saveFontSize, saveFontFamily, type FontSizeId, type FontFamilyId } from '../utils/fontSettings';
 import { getReleaseLinkRepo, saveReleaseLinkRepo } from '../utils/releaseSettings';
+
+function Toggle({ checked, onChange, size = 'md' }: { checked: boolean; onChange: () => void; size?: 'md' | 'sm' }) {
+  const isMd = size === 'md';
+  return (
+    <div
+      onClick={onChange}
+      className={`relative shrink-0 rounded-full transition-colors cursor-pointer ${isMd ? 'w-8 h-4' : 'w-7 h-3.5'} ${
+        checked ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+      }`}
+    >
+      <div className={`absolute top-0.5 bg-white rounded-full shadow transition-transform ${isMd ? 'w-3 h-3' : 'w-2.5 h-2.5'} ${
+        checked ? (isMd ? 'translate-x-4' : 'translate-x-3.5') : 'translate-x-0.5'
+      }`} />
+    </div>
+  );
+}
 
 interface Props {
   isOpen: boolean;
@@ -28,6 +48,11 @@ interface Props {
   allLabels: string[];
   // Tags disponíveis
   availableTags: string[];
+  // Notificações
+  notificationSettings: NotificationSettings;
+  onNotificationSettingsChange: (settings: NotificationSettings) => void;
+  activitySettings: ActivityMonitorSettings;
+  onActivitySettingsChange: (settings: ActivityMonitorSettings) => void;
 }
 
 export const SettingsPanel: React.FC<Props> = ({
@@ -43,9 +68,13 @@ export const SettingsPanel: React.FC<Props> = ({
   onSaveViews,
   allStatuses,
   allLabels,
-  availableTags
+  availableTags,
+  notificationSettings,
+  onNotificationSettingsChange,
+  activitySettings,
+  onActivitySettingsChange,
 }) => {
-  const [activeTab, setActiveTab] = useState<'account' | 'theme' | 'views' | 'templates' | 'mappings' | 'release' | 'backup'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'theme' | 'views' | 'templates' | 'mappings' | 'release' | 'notifications' | 'backup'>('account');
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [accountInfo, setAccountInfo] = useState<any>(null);
@@ -54,6 +83,7 @@ export const SettingsPanel: React.FC<Props> = ({
   const [currentFontFamily, setCurrentFontFamily] = useState<FontFamilyId>(getFontFamily);
   const [releaseLinkRepo, setReleaseLinkRepo] = useState<string>(getReleaseLinkRepo);
   const [releaseLinkRepoSaved, setReleaseLinkRepoSaved] = useState(false);
+  const [sysPermission, setSysPermission] = useState(() => getSystemNotificationPermission());
 
   // Resetar para aba account quando abrir
   useEffect(() => {
@@ -175,6 +205,223 @@ export const SettingsPanel: React.FC<Props> = ({
                   Links serão gerados usando o repositório de cada card.
                 </p>
               )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeTab === 'notifications') {
+      const requestPermission = async () => {
+        const result = await requestSystemNotificationPermission();
+        setSysPermission(result);
+      };
+
+      return (
+        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">
+              Notificações
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Configure alertas, sons e popups do sistema para notificações do GitHub e atividades do board.
+            </p>
+          </div>
+
+          {/* Permissão de popup do sistema (OS) — compartilhada pelas duas seções abaixo */}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Monitor size={16} className="text-gray-500" />
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Popups do sistema operacional</h4>
+            </div>
+            {sysPermission === 'unsupported' ? (
+              <p className="text-xs text-gray-400 dark:text-gray-500">Não suportado neste navegador.</p>
+            ) : sysPermission === 'denied' ? (
+              <p className="text-xs text-red-500 dark:text-red-400">
+                Permissão negada. Habilite notificações para este site nas configurações do navegador.
+              </p>
+            ) : sysPermission === 'granted' ? (
+              <p className="text-xs text-green-600 dark:text-green-400">Permissão concedida — os popups abaixo podem ser ativados.</p>
+            ) : (
+              <button
+                onClick={requestPermission}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Solicitar permissão
+              </button>
+            )}
+          </div>
+
+          {/* ── Notificações do GitHub ── */}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <Bell size={16} className="text-blue-500" />
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Notificações do GitHub</h4>
+            </div>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <Toggle checked={notificationSettings.enabled} onChange={() => onNotificationSettingsChange({ ...notificationSettings, enabled: !notificationSettings.enabled })} />
+              <span className="text-sm text-gray-700 dark:text-gray-300">Notificações ativas</span>
+            </label>
+
+            {notificationSettings.enabled && (
+              <div className="pl-1 space-y-4">
+                {/* Alertas em tela */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Alertas em tela (estilo MSN)</p>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Toggle size="sm" checked={notificationSettings.popupMentions} onChange={() => onNotificationSettingsChange({ ...notificationSettings, popupMentions: !notificationSettings.popupMentions })} />
+                      <AtSign size={13} className="text-purple-500" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Popup para menções</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Toggle size="sm" checked={notificationSettings.popupComments} onChange={() => onNotificationSettingsChange({ ...notificationSettings, popupComments: !notificationSettings.popupComments })} />
+                      <MessageSquare size={13} className="text-blue-500" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Popup para comentários (cards seus)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Toggle size="sm" checked={notificationSettings.popupAssignments} onChange={() => onNotificationSettingsChange({ ...notificationSettings, popupAssignments: !notificationSettings.popupAssignments })} />
+                      <UserCheck size={13} className="text-green-500" />
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Popup para atribuições</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Sons */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Sons</p>
+                  <label className="flex items-center gap-2 cursor-pointer mb-2">
+                    <Toggle checked={notificationSettings.soundEnabled} onChange={() => onNotificationSettingsChange({ ...notificationSettings, soundEnabled: !notificationSettings.soundEnabled })} />
+                    {notificationSettings.soundEnabled ? <Volume2 size={14} className="text-blue-500" /> : <VolumeX size={14} className="text-gray-400" />}
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Sons ativos</span>
+                  </label>
+                  {notificationSettings.soundEnabled && (
+                    <div className="space-y-2 pl-1">
+                      <div className="flex items-center gap-2">
+                        <Volume2 size={12} className="text-gray-400 shrink-0" />
+                        <input
+                          type="range"
+                          min="0" max="100"
+                          value={Math.round((notificationSettings.soundVolume ?? 0.5) * 100)}
+                          onChange={e => onNotificationSettingsChange({ ...notificationSettings, soundVolume: parseInt(e.target.value) / 100 })}
+                          className="flex-1 h-1 accent-blue-500 cursor-pointer"
+                        />
+                        <span className="text-xs text-gray-500 w-9 text-right">{Math.round((notificationSettings.soundVolume ?? 0.5) * 100)}%</span>
+                      </div>
+                      {([
+                        { key: 'soundMentions', label: 'Menções', sound: 'mention' as const, icon: <AtSign size={13} className="text-purple-500" /> },
+                        { key: 'soundComments', label: 'Comentários', sound: 'comment' as const, icon: <MessageSquare size={13} className="text-blue-500" /> },
+                        { key: 'soundAssignments', label: 'Atribuições', sound: 'assign' as const, icon: <UserCheck size={13} className="text-green-500" /> },
+                      ] as const).map(({ key, label, sound, icon }) => (
+                        <label key={key} className="flex items-center gap-2 cursor-pointer">
+                          <Toggle size="sm" checked={notificationSettings[key]} onChange={() => onNotificationSettingsChange({ ...notificationSettings, [key]: !notificationSettings[key] })} />
+                          {icon}
+                          <span className="text-sm text-gray-600 dark:text-gray-400 flex-1">{label}</span>
+                          <button
+                            onClick={() => playNotificationSound(sound, notificationSettings.soundVolume ?? 0.5)}
+                            className="p-0.5 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                            title="Testar som"
+                          >
+                            <Play size={11} />
+                          </button>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Popup do sistema */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Notificação do sistema</p>
+                  <label className={`flex items-center gap-2 ${sysPermission === 'granted' ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
+                    <Toggle
+                      checked={notificationSettings.systemNotificationsEnabled}
+                      onChange={() => sysPermission === 'granted' && onNotificationSettingsChange({ ...notificationSettings, systemNotificationsEnabled: !notificationSettings.systemNotificationsEnabled })}
+                    />
+                    <Monitor size={13} className={notificationSettings.systemNotificationsEnabled ? 'text-blue-500' : 'text-gray-400'} />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Popup do sistema (OS) para notificações do GitHub</span>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── Atividades do board ── */}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4">
+            <div className="flex items-center gap-2">
+              <History size={16} className="text-amber-500" />
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Atividades do board</h4>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">O que monitorar</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                {([
+                  ['trackAdded', 'Card adicionado'],
+                  ['trackMoved', 'Card movido'],
+                  ['trackRemoved', 'Card removido'],
+                  ['trackAssignees', 'Responsáveis'],
+                  ['trackLabels', 'Labels'],
+                  ['trackTitle', 'Título'],
+                  ['trackIssueState', 'Estado (aberto/fechado)'],
+                  ['trackDueDate', 'Prazo'],
+                  ['trackComments', 'Comentários novos'],
+                ] as [keyof ActivityMonitorSettings, string][]).map(([key, label]) => (
+                  <label key={key} className="flex items-center gap-1.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={activitySettings[key] as boolean}
+                      onChange={e => onActivitySettingsChange({ ...activitySettings, [key]: e.target.checked })}
+                      className="w-3.5 h-3.5 rounded accent-amber-500"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white">
+                      {label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Sons</p>
+              <label className="flex items-center gap-2 cursor-pointer mb-2">
+                <Toggle checked={activitySettings.soundEnabled} onChange={() => onActivitySettingsChange({ ...activitySettings, soundEnabled: !activitySettings.soundEnabled })} />
+                {activitySettings.soundEnabled ? <Volume2 size={14} className="text-amber-500" /> : <VolumeX size={14} className="text-gray-400" />}
+                <span className="text-sm text-gray-700 dark:text-gray-300">Sons ativos</span>
+              </label>
+              {activitySettings.soundEnabled && (
+                <div className="flex items-center gap-2 pl-1">
+                  <Volume2 size={12} className="text-gray-400 shrink-0" />
+                  <input
+                    type="range"
+                    min="0" max="100"
+                    value={Math.round((activitySettings.soundVolume ?? 0.5) * 100)}
+                    onChange={e => onActivitySettingsChange({ ...activitySettings, soundVolume: parseInt(e.target.value) / 100 })}
+                    className="flex-1 h-1 accent-amber-500 cursor-pointer"
+                  />
+                  <span className="text-xs text-gray-500 w-9 text-right">{Math.round((activitySettings.soundVolume ?? 0.5) * 100)}%</span>
+                  <button
+                    onClick={() => playNotificationSound('activity_moved', activitySettings.soundVolume ?? 0.5)}
+                    className="p-0.5 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                    title="Testar som"
+                  >
+                    <Play size={11} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Notificação do sistema</p>
+              <label className={`flex items-center gap-2 ${sysPermission === 'granted' ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
+                <Toggle
+                  checked={activitySettings.systemNotificationsEnabled}
+                  onChange={() => sysPermission === 'granted' && onActivitySettingsChange({ ...activitySettings, systemNotificationsEnabled: !activitySettings.systemNotificationsEnabled })}
+                />
+                <Monitor size={13} className={activitySettings.systemNotificationsEnabled ? 'text-amber-500' : 'text-gray-400'} />
+                <span className="text-sm text-gray-700 dark:text-gray-300">Popup do sistema (OS) para atividades do board</span>
+              </label>
             </div>
           </div>
         </div>
@@ -635,6 +882,17 @@ export const SettingsPanel: React.FC<Props> = ({
             >
               <Package size={16} />
               Release
+            </button>
+            <button
+              onClick={() => setActiveTab('notifications')}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === 'notifications'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
+            >
+              <Bell size={16} />
+              Notificações
             </button>
             <button
               onClick={() => setActiveTab('backup')}
