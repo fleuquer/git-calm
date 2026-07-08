@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '0.1.1';
+export const CURRENT_VERSION = '0.1.2';
 export const VERSION_STORAGE_KEY = 'app_last_seen_version';
 
 export interface Change {
