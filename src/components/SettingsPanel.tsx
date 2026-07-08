@@ -14,6 +14,18 @@ import { getSystemNotificationPermission, requestSystemNotificationPermission } 
 import { FONT_SIZES, FONT_FAMILIES, getFontSize, getFontFamily, saveFontSize, saveFontFamily, type FontSizeId, type FontFamilyId } from '../utils/fontSettings';
 import { getReleaseLinkRepo, saveReleaseLinkRepo } from '../utils/releaseSettings';
 
+function SectionCard({ icon, title, className, disabled, children }: { icon: React.ReactNode; title: string; className?: string; disabled?: boolean; children: React.ReactNode }) {
+  return (
+    <div className={`border border-gray-200 dark:border-gray-700 rounded-lg p-4 transition-opacity ${disabled ? 'opacity-50 pointer-events-none' : ''} ${className ?? ''}`}>
+      <div className="flex items-center gap-2 mb-3">
+        {icon}
+        <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">{title}</h4>
+      </div>
+      <div className="space-y-2.5">{children}</div>
+    </div>
+  );
+}
+
 function Toggle({ checked, onChange, size = 'md' }: { checked: boolean; onChange: () => void; size?: 'md' | 'sm' }) {
   const isMd = size === 'md';
   return (
@@ -253,71 +265,60 @@ export const SettingsPanel: React.FC<Props> = ({
           </div>
 
           {/* ── Notificações do GitHub ── */}
-          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4">
-            <div className="flex items-center gap-2">
-              <Bell size={16} className="text-blue-500" />
-              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Notificações do GitHub</h4>
-            </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3">Notificações do GitHub</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <SectionCard icon={<Bell size={15} className="text-blue-500" />} title="Ativação">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Notificações ativas</span>
+                  <Toggle checked={notificationSettings.enabled} onChange={() => onNotificationSettingsChange({ ...notificationSettings, enabled: !notificationSettings.enabled })} />
+                </label>
+                <p className="text-xs text-gray-400 dark:text-gray-500">
+                  Controla o recebimento de notificações do GitHub (menções, comentários, atribuições).
+                </p>
+              </SectionCard>
 
-            <label className="flex items-center gap-2 cursor-pointer">
-              <Toggle checked={notificationSettings.enabled} onChange={() => onNotificationSettingsChange({ ...notificationSettings, enabled: !notificationSettings.enabled })} />
-              <span className="text-sm text-gray-700 dark:text-gray-300">Notificações ativas</span>
-            </label>
+              <SectionCard icon={<AtSign size={15} className="text-purple-500" />} title="Alertas em tela" disabled={!notificationSettings.enabled}>
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400"><AtSign size={13} className="text-purple-500" /> Menções</span>
+                  <Toggle size="sm" checked={notificationSettings.popupMentions} onChange={() => onNotificationSettingsChange({ ...notificationSettings, popupMentions: !notificationSettings.popupMentions })} />
+                </label>
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400"><MessageSquare size={13} className="text-blue-500" /> Comentários (cards seus)</span>
+                  <Toggle size="sm" checked={notificationSettings.popupComments} onChange={() => onNotificationSettingsChange({ ...notificationSettings, popupComments: !notificationSettings.popupComments })} />
+                </label>
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400"><UserCheck size={13} className="text-green-500" /> Atribuições</span>
+                  <Toggle size="sm" checked={notificationSettings.popupAssignments} onChange={() => onNotificationSettingsChange({ ...notificationSettings, popupAssignments: !notificationSettings.popupAssignments })} />
+                </label>
+              </SectionCard>
 
-            {notificationSettings.enabled && (
-              <div className="pl-1 space-y-4">
-                {/* Alertas em tela */}
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Alertas em tela (estilo MSN)</p>
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <Toggle size="sm" checked={notificationSettings.popupMentions} onChange={() => onNotificationSettingsChange({ ...notificationSettings, popupMentions: !notificationSettings.popupMentions })} />
-                      <AtSign size={13} className="text-purple-500" />
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Popup para menções</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <Toggle size="sm" checked={notificationSettings.popupComments} onChange={() => onNotificationSettingsChange({ ...notificationSettings, popupComments: !notificationSettings.popupComments })} />
-                      <MessageSquare size={13} className="text-blue-500" />
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Popup para comentários (cards seus)</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <Toggle size="sm" checked={notificationSettings.popupAssignments} onChange={() => onNotificationSettingsChange({ ...notificationSettings, popupAssignments: !notificationSettings.popupAssignments })} />
-                      <UserCheck size={13} className="text-green-500" />
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Popup para atribuições</span>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Sons */}
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Sons</p>
-                  <label className="flex items-center gap-2 cursor-pointer mb-2">
-                    <Toggle checked={notificationSettings.soundEnabled} onChange={() => onNotificationSettingsChange({ ...notificationSettings, soundEnabled: !notificationSettings.soundEnabled })} />
-                    {notificationSettings.soundEnabled ? <Volume2 size={14} className="text-blue-500" /> : <VolumeX size={14} className="text-gray-400" />}
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Sons ativos</span>
-                  </label>
-                  {notificationSettings.soundEnabled && (
-                    <div className="space-y-2 pl-1">
-                      <div className="flex items-center gap-2">
-                        <Volume2 size={12} className="text-gray-400 shrink-0" />
-                        <input
-                          type="range"
-                          min="0" max="100"
-                          value={Math.round((notificationSettings.soundVolume ?? 0.5) * 100)}
-                          onChange={e => onNotificationSettingsChange({ ...notificationSettings, soundVolume: parseInt(e.target.value) / 100 })}
-                          className="flex-1 h-1 accent-blue-500 cursor-pointer"
-                        />
-                        <span className="text-xs text-gray-500 w-9 text-right">{Math.round((notificationSettings.soundVolume ?? 0.5) * 100)}%</span>
-                      </div>
-                      {([
-                        { key: 'soundMentions', label: 'Menções', sound: 'mention' as const, icon: <AtSign size={13} className="text-purple-500" /> },
-                        { key: 'soundComments', label: 'Comentários', sound: 'comment' as const, icon: <MessageSquare size={13} className="text-blue-500" /> },
-                        { key: 'soundAssignments', label: 'Atribuições', sound: 'assign' as const, icon: <UserCheck size={13} className="text-green-500" /> },
-                      ] as const).map(({ key, label, sound, icon }) => (
-                        <label key={key} className="flex items-center gap-2 cursor-pointer">
-                          <Toggle size="sm" checked={notificationSettings[key]} onChange={() => onNotificationSettingsChange({ ...notificationSettings, [key]: !notificationSettings[key] })} />
-                          {icon}
-                          <span className="text-sm text-gray-600 dark:text-gray-400 flex-1">{label}</span>
+              <SectionCard icon={notificationSettings.soundEnabled ? <Volume2 size={15} className="text-blue-500" /> : <VolumeX size={15} className="text-gray-400" />} title="Sons" disabled={!notificationSettings.enabled}>
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Sons ativos</span>
+                  <Toggle checked={notificationSettings.soundEnabled} onChange={() => onNotificationSettingsChange({ ...notificationSettings, soundEnabled: !notificationSettings.soundEnabled })} />
+                </label>
+                {notificationSettings.soundEnabled && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Volume2 size={12} className="text-gray-400 shrink-0" />
+                      <input
+                        type="range"
+                        min="0" max="100"
+                        value={Math.round((notificationSettings.soundVolume ?? 0.5) * 100)}
+                        onChange={e => onNotificationSettingsChange({ ...notificationSettings, soundVolume: parseInt(e.target.value) / 100 })}
+                        className="flex-1 h-1 accent-blue-500 cursor-pointer"
+                      />
+                      <span className="text-xs text-gray-500 w-9 text-right">{Math.round((notificationSettings.soundVolume ?? 0.5) * 100)}%</span>
+                    </div>
+                    {([
+                      { key: 'soundMentions', label: 'Menções', sound: 'mention' as const, icon: <AtSign size={13} className="text-purple-500" /> },
+                      { key: 'soundComments', label: 'Comentários', sound: 'comment' as const, icon: <MessageSquare size={13} className="text-blue-500" /> },
+                      { key: 'soundAssignments', label: 'Atribuições', sound: 'assign' as const, icon: <UserCheck size={13} className="text-green-500" /> },
+                    ] as const).map(({ key, label, sound, icon }) => (
+                      <label key={key} className="flex items-center justify-between cursor-pointer">
+                        <span className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400">{icon} {label}</span>
+                        <span className="flex items-center gap-1.5">
                           <button
                             onClick={() => playNotificationSound(sound, notificationSettings.soundVolume ?? 0.5)}
                             className="p-0.5 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
@@ -325,103 +326,100 @@ export const SettingsPanel: React.FC<Props> = ({
                           >
                             <Play size={11} />
                           </button>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                          <Toggle size="sm" checked={notificationSettings[key]} onChange={() => onNotificationSettingsChange({ ...notificationSettings, [key]: !notificationSettings[key] })} />
+                        </span>
+                      </label>
+                    ))}
+                  </>
+                )}
+              </SectionCard>
 
-                {/* Popup do sistema */}
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Notificação do sistema</p>
-                  <label className={`flex items-center gap-2 ${sysPermission === 'granted' ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
-                    <Toggle
-                      checked={notificationSettings.systemNotificationsEnabled}
-                      onChange={() => sysPermission === 'granted' && onNotificationSettingsChange({ ...notificationSettings, systemNotificationsEnabled: !notificationSettings.systemNotificationsEnabled })}
-                    />
-                    <Monitor size={13} className={notificationSettings.systemNotificationsEnabled ? 'text-blue-500' : 'text-gray-400'} />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Popup do sistema (OS) para notificações do GitHub</span>
-                  </label>
-                </div>
-              </div>
-            )}
+              <SectionCard icon={<Monitor size={15} className={notificationSettings.systemNotificationsEnabled ? 'text-blue-500' : 'text-gray-400'} />} title="Notificação do sistema" disabled={!notificationSettings.enabled || sysPermission !== 'granted'}>
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Popup do sistema (OS)</span>
+                  <Toggle
+                    checked={notificationSettings.systemNotificationsEnabled}
+                    onChange={() => onNotificationSettingsChange({ ...notificationSettings, systemNotificationsEnabled: !notificationSettings.systemNotificationsEnabled })}
+                  />
+                </label>
+                <p className="text-xs text-gray-400 dark:text-gray-500">
+                  Mostra um popup nativo do sistema quando chegar uma notificação do GitHub.
+                </p>
+              </SectionCard>
+            </div>
           </div>
 
           {/* ── Atividades do board ── */}
-          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4">
-            <div className="flex items-center gap-2">
-              <History size={16} className="text-amber-500" />
-              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Atividades do board</h4>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">O que monitorar</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                {([
-                  ['trackAdded', 'Card adicionado'],
-                  ['trackMoved', 'Card movido'],
-                  ['trackRemoved', 'Card removido'],
-                  ['trackAssignees', 'Responsáveis'],
-                  ['trackLabels', 'Labels'],
-                  ['trackTitle', 'Título'],
-                  ['trackIssueState', 'Estado (aberto/fechado)'],
-                  ['trackDueDate', 'Prazo'],
-                  ['trackComments', 'Comentários novos'],
-                ] as [keyof ActivityMonitorSettings, string][]).map(([key, label]) => (
-                  <label key={key} className="flex items-center gap-1.5 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={activitySettings[key] as boolean}
-                      onChange={e => onActivitySettingsChange({ ...activitySettings, [key]: e.target.checked })}
-                      className="w-3.5 h-3.5 rounded accent-amber-500"
-                    />
-                    <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white">
-                      {label}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Sons</p>
-              <label className="flex items-center gap-2 cursor-pointer mb-2">
-                <Toggle checked={activitySettings.soundEnabled} onChange={() => onActivitySettingsChange({ ...activitySettings, soundEnabled: !activitySettings.soundEnabled })} />
-                {activitySettings.soundEnabled ? <Volume2 size={14} className="text-amber-500" /> : <VolumeX size={14} className="text-gray-400" />}
-                <span className="text-sm text-gray-700 dark:text-gray-300">Sons ativos</span>
-              </label>
-              {activitySettings.soundEnabled && (
-                <div className="flex items-center gap-2 pl-1">
-                  <Volume2 size={12} className="text-gray-400 shrink-0" />
-                  <input
-                    type="range"
-                    min="0" max="100"
-                    value={Math.round((activitySettings.soundVolume ?? 0.5) * 100)}
-                    onChange={e => onActivitySettingsChange({ ...activitySettings, soundVolume: parseInt(e.target.value) / 100 })}
-                    className="flex-1 h-1 accent-amber-500 cursor-pointer"
-                  />
-                  <span className="text-xs text-gray-500 w-9 text-right">{Math.round((activitySettings.soundVolume ?? 0.5) * 100)}%</span>
-                  <button
-                    onClick={() => playNotificationSound('activity_moved', activitySettings.soundVolume ?? 0.5)}
-                    className="p-0.5 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                    title="Testar som"
-                  >
-                    <Play size={11} />
-                  </button>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3">Atividades do board</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <SectionCard icon={<History size={15} className="text-amber-500" />} title="O que monitorar" className="md:col-span-2">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2">
+                  {([
+                    ['trackAdded', 'Card adicionado'],
+                    ['trackMoved', 'Card movido'],
+                    ['trackRemoved', 'Card removido'],
+                    ['trackAssignees', 'Responsáveis'],
+                    ['trackLabels', 'Labels'],
+                    ['trackTitle', 'Título'],
+                    ['trackIssueState', 'Estado (aberto/fechado)'],
+                    ['trackDueDate', 'Prazo'],
+                    ['trackComments', 'Comentários novos'],
+                  ] as [keyof ActivityMonitorSettings, string][]).map(([key, label]) => (
+                    <label key={key} className="flex items-center gap-1.5 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={activitySettings[key] as boolean}
+                        onChange={e => onActivitySettingsChange({ ...activitySettings, [key]: e.target.checked })}
+                        className="w-3.5 h-3.5 rounded accent-amber-500"
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white">
+                        {label}
+                      </span>
+                    </label>
+                  ))}
                 </div>
-              )}
-            </div>
+              </SectionCard>
 
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Notificação do sistema</p>
-              <label className={`flex items-center gap-2 ${sysPermission === 'granted' ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
-                <Toggle
-                  checked={activitySettings.systemNotificationsEnabled}
-                  onChange={() => sysPermission === 'granted' && onActivitySettingsChange({ ...activitySettings, systemNotificationsEnabled: !activitySettings.systemNotificationsEnabled })}
-                />
-                <Monitor size={13} className={activitySettings.systemNotificationsEnabled ? 'text-amber-500' : 'text-gray-400'} />
-                <span className="text-sm text-gray-700 dark:text-gray-300">Popup do sistema (OS) para atividades do board</span>
-              </label>
+              <SectionCard icon={activitySettings.soundEnabled ? <Volume2 size={15} className="text-amber-500" /> : <VolumeX size={15} className="text-gray-400" />} title="Sons">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Sons ativos</span>
+                  <Toggle checked={activitySettings.soundEnabled} onChange={() => onActivitySettingsChange({ ...activitySettings, soundEnabled: !activitySettings.soundEnabled })} />
+                </label>
+                {activitySettings.soundEnabled && (
+                  <div className="flex items-center gap-2">
+                    <Volume2 size={12} className="text-gray-400 shrink-0" />
+                    <input
+                      type="range"
+                      min="0" max="100"
+                      value={Math.round((activitySettings.soundVolume ?? 0.5) * 100)}
+                      onChange={e => onActivitySettingsChange({ ...activitySettings, soundVolume: parseInt(e.target.value) / 100 })}
+                      className="flex-1 h-1 accent-amber-500 cursor-pointer"
+                    />
+                    <span className="text-xs text-gray-500 w-9 text-right">{Math.round((activitySettings.soundVolume ?? 0.5) * 100)}%</span>
+                    <button
+                      onClick={() => playNotificationSound('activity_moved', activitySettings.soundVolume ?? 0.5)}
+                      className="p-0.5 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                      title="Testar som"
+                    >
+                      <Play size={11} />
+                    </button>
+                  </div>
+                )}
+              </SectionCard>
+
+              <SectionCard icon={<Monitor size={15} className={activitySettings.systemNotificationsEnabled ? 'text-amber-500' : 'text-gray-400'} />} title="Notificação do sistema" disabled={sysPermission !== 'granted'}>
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Popup do sistema (OS)</span>
+                  <Toggle
+                    checked={activitySettings.systemNotificationsEnabled}
+                    onChange={() => onActivitySettingsChange({ ...activitySettings, systemNotificationsEnabled: !activitySettings.systemNotificationsEnabled })}
+                  />
+                </label>
+                <p className="text-xs text-gray-400 dark:text-gray-500">
+                  Mostra um popup nativo do sistema quando houver atividade no board.
+                </p>
+              </SectionCard>
             </div>
           </div>
         </div>
