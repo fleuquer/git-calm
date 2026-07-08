@@ -648,6 +648,25 @@ export const ReleaseModal: React.FC<Props> = ({
     setTimeout(() => setCopiedCommand(null), 2000);
   };
 
+  // Repos secundários (auto-detectados + extras manuais) que de fato terão versão própria nesta release,
+  // ou seja, cuja tag foi habilitada no passo "Comandos Git" (mesma regra usada lá).
+  const getEnabledSecondaryRepos = (
+    cardId: string,
+    allRepos: string[],
+    effectiveRepo: string,
+    branchesWithRepos: BranchWithRepo[]
+  ): string[] => {
+    const autoSecondaries = (allRepos || []).filter(r => r !== effectiveRepo);
+    const manualExtras = (extraCardRepos[cardId] || []).filter(r => !autoSecondaries.includes(r));
+    const candidates = [...autoSecondaries, ...manualExtras];
+    return candidates.filter(secRepo => {
+      const secBranches = (branchesWithRepos || []).filter(b => b.repo === secRepo);
+      return secBranches.length === 0
+        ? secRepoTagEnabled[secRepo] !== false
+        : !!secRepoTagEnabled[secRepo];
+    });
+  };
+
   const handleFinalize = async () => {
     console.log('🚀 handleFinalize chamado!');
     console.log('   isProcessing:', isProcessing);
@@ -688,12 +707,12 @@ export const ReleaseModal: React.FC<Props> = ({
       const selectedCardsList = cardsByRepo.flatMap(({ repo, cards }) =>
         cards
           .filter(({ card }) => selectedCards.has(card.id))
-          .map(({ card, branches, effectiveRepo, allRepos }) => ({ card, branches, repo, effectiveRepo, allRepos }))
+          .map(({ card, branches, branchesWithRepos, effectiveRepo, allRepos }) => ({ card, branches, branchesWithRepos, repo, effectiveRepo, allRepos }))
       );
 
       console.log(`📦 Processando ${selectedCardsList.length} cards...`);
 
-      for (const { card, repo, effectiveRepo, allRepos } of selectedCardsList) {
+      for (const { card, repo, effectiveRepo, allRepos, branchesWithRepos } of selectedCardsList) {
         const versionNumber = versionNumbers[repo];
 
         if (!versionNumber) {
@@ -714,10 +733,8 @@ export const ReleaseModal: React.FC<Props> = ({
             url: card.url
           });
 
-          // Todos os repos secundários: auto-detectados + extras manuais
-          const autoSecondaries = (allRepos || []).filter(r => r !== effectiveRepo);
-          const manualExtras = (extraCardRepos[card.id] || []).filter(r => !autoSecondaries.includes(r));
-          const allSecondaries = [...autoSecondaries, ...manualExtras];
+          // Repos secundários que de fato terão versão própria (tag habilitada no passo "Comandos Git")
+          const allSecondaries = getEnabledSecondaryRepos(card.id, allRepos, effectiveRepo, branchesWithRepos);
 
           // 2.1. Comentar no card
           let commentBody: string;
@@ -1774,18 +1791,14 @@ export const ReleaseModal: React.FC<Props> = ({
                       </div>
                     </div>
 
-                    {/* Versões de repos secundários por card */}
-                    {selectedRepoCards.some(({ card, allRepos, effectiveRepo }) => {
-                      const autoSec = allRepos.filter(r => r !== effectiveRepo);
-                      const manualExtras = (extraCardRepos[card.id] || []).filter(r => !autoSec.includes(r));
-                      return autoSec.length > 0 || manualExtras.length > 0;
-                    }) && (
+                    {/* Versões de repos secundários por card (apenas os com tag habilitada) */}
+                    {selectedRepoCards.some(({ card, allRepos, effectiveRepo, branchesWithRepos }) =>
+                      getEnabledSecondaryRepos(card.id, allRepos, effectiveRepo, branchesWithRepos).length > 0
+                    ) && (
                       <div className="mb-4 space-y-3 border-t border-dashed border-gray-200 dark:border-gray-700 pt-3">
                         <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Versões dos repos secundários</p>
-                        {selectedRepoCards.map(({ card, allRepos, effectiveRepo }) => {
-                          const autoSec = allRepos.filter(r => r !== effectiveRepo);
-                          const manualExtras = (extraCardRepos[card.id] || []).filter(r => !autoSec.includes(r));
-                          const allSecondaries = [...autoSec, ...manualExtras];
+                        {selectedRepoCards.map(({ card, allRepos, effectiveRepo, branchesWithRepos }) => {
+                          const allSecondaries = getEnabledSecondaryRepos(card.id, allRepos, effectiveRepo, branchesWithRepos);
                           if (allSecondaries.length === 0) return null;
                           return (
                             <div key={card.id}>
@@ -1819,12 +1832,10 @@ export const ReleaseModal: React.FC<Props> = ({
                         <li>Comentar em cada card:</li>
                       </ul>
                       <div className="space-y-2 ml-4">
-                        {selectedRepoCards.map(({ card, effectiveRepo, allRepos }) => {
+                        {selectedRepoCards.map(({ card, effectiveRepo, allRepos, branchesWithRepos }) => {
                           const primaryLabel = effectiveRepo || card.repo || repo;
                           const version = versionNumbers[repo] || 'X';
-                          const autoSec = (allRepos || []).filter(r => r !== effectiveRepo);
-                          const manualExtras = (extraCardRepos[card.id] || []).filter(r => !autoSec.includes(r));
-                          const allSec = [...autoSec, ...manualExtras];
+                          const allSec = getEnabledSecondaryRepos(card.id, allRepos, effectiveRepo, branchesWithRepos);
 
                           const commentPreview = allSec.length === 0
                             ? `**Liberado na versão ${version}**`
