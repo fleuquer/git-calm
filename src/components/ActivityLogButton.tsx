@@ -88,18 +88,15 @@ function getChangeIcon(change: CardChange) {
   }
 }
 
+// Resumo de uma mudança, sem repetir o título do card (mostrado uma vez no cabeçalho do grupo)
 function getChangeLabel(change: CardChange): { title: string; detail: string } {
-  const cardTitle = change.card.title.length > 45
-    ? change.card.title.slice(0, 45) + '…'
-    : change.card.title;
-
   switch (change.type) {
     case 'added':
-      return { title: 'Card adicionado', detail: `"${cardTitle}" → ${change.toColumn}` };
+      return { title: 'Card adicionado', detail: `→ ${change.toColumn}` };
     case 'moved':
-      return { title: 'Card movido', detail: `"${cardTitle}": ${change.fromColumn} → ${change.toColumn}` };
+      return { title: 'Card movido', detail: `${change.fromColumn} → ${change.toColumn}` };
     case 'removed':
-      return { title: 'Card removido', detail: `"${cardTitle}" (era: ${change.fromColumn})` };
+      return { title: 'Card removido', detail: `era: ${change.fromColumn}` };
     case 'updated': {
       const c = change.changes;
 
@@ -109,16 +106,16 @@ function getChangeLabel(change: CardChange): { title: string; detail: string } {
           : s === 'CLOSED' ? 'Issue/PR fechado'
           : 'Issue/PR reaberto';
         const from = change.fromIssueState
-          ? ` (era: ${change.fromIssueState === 'OPEN' ? 'aberto' : change.fromIssueState === 'CLOSED' ? 'fechado' : change.fromIssueState})`
+          ? `era: ${change.fromIssueState === 'OPEN' ? 'aberto' : change.fromIssueState === 'CLOSED' ? 'fechado' : change.fromIssueState}`
           : '';
-        return { title: stateLabel, detail: `"${cardTitle}"${from}` };
+        return { title: stateLabel, detail: from };
       }
 
       if (c?.comments && change.commentCountDiff) {
         const n = change.commentCountDiff;
         return {
           title: `${n} novo${n > 1 ? 's' : ''} comentário${n > 1 ? 's' : ''}`,
-          detail: `"${cardTitle}"`,
+          detail: '',
         };
       }
 
@@ -126,7 +123,7 @@ function getChangeLabel(change: CardChange): { title: string; detail: string } {
         const d = change.card.dueDate;
         return {
           title: d ? 'Prazo definido/alterado' : 'Prazo removido',
-          detail: d ? `"${cardTitle}" → ${new Date(d).toLocaleDateString('pt-BR')}` : `"${cardTitle}"`,
+          detail: d ? new Date(d).toLocaleDateString('pt-BR') : '',
         };
       }
 
@@ -137,11 +134,42 @@ function getChangeLabel(change: CardChange): { title: string; detail: string } {
       if (c?.status)    parts.push('status');
       return {
         title: 'Card atualizado',
-        detail: parts.length ? `"${cardTitle}" (${parts.join(', ')})` : `"${cardTitle}"`,
+        detail: parts.join(', '),
       };
     }
     default:
-      return { title: 'Atualização', detail: change.card.title };
+      return { title: 'Atualização', detail: '' };
+  }
+}
+
+// Agrupa itens (já ordenados do mais novo pro mais antigo) por card, preservando a ordem de recência
+function groupItemsByCard(items: ActivityLogItem[]): { key: string; items: ActivityLogItem[] }[] {
+  const map = new Map<string, ActivityLogItem[]>();
+  const order: string[] = [];
+  items.forEach(item => {
+    const key = String(item.change.card.number);
+    if (!map.has(key)) {
+      map.set(key, []);
+      order.push(key);
+    }
+    map.get(key)!.push(item);
+  });
+  return order.map(key => ({ key, items: map.get(key)! }));
+}
+
+// Remove campos de texto livre (descrição da issue, corpo de comentário) que nunca são lidos
+// de volta do histórico — quem abre o card busca esses dados frescos na API (CardDetailModal.loadDetails).
+// Mantém o log leve, evitando estourar a cota do localStorage com 100 cópias de descrições longas.
+function stripHeavyCardFields(change: CardChange): CardChange {
+  const { body: _body, lastEventDetails: _lastEventDetails, ...lightCard } = change.card;
+  return { ...change, card: lightCard as ProjectCard };
+}
+
+function saveLog(next: ActivityLogItem[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch (err) {
+    console.warn('Não foi possível salvar o histórico de atividades no localStorage:', err);
   }
 }
 
@@ -158,7 +186,7 @@ export function useActivityLog() {
 
   const persist = useCallback((next: ActivityLogItem[]) => {
     setItems(next);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* quota */ }
+    saveLog(next);
   }, []);
 
   const addChanges = useCallback((changes: CardChange[]) => {
@@ -166,13 +194,13 @@ export function useActivityLog() {
     const now = new Date().toISOString();
     const newItems: ActivityLogItem[] = changes.map(change => ({
       id: `${change.type}-${change.card.number}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      change,
+      change: stripHeavyCardFields(change),
       timestamp: now,
       read: false,
     }));
     setItems(prev => {
       const next = [...newItems, ...prev].slice(0, MAX_ITEMS);
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* quota */ }
+      saveLog(next);
       return next;
     });
   }, []);
@@ -184,7 +212,7 @@ export function useActivityLog() {
   const markRead = useCallback((id: string) => {
     setItems(prev => {
       const next = prev.map(i => i.id === id ? { ...i, read: true } : i);
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* quota */ }
+      saveLog(next);
       return next;
     });
   }, []);
@@ -228,11 +256,10 @@ export const ActivityLogButton: React.FC<ButtonProps> = ({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const handleItemClick = (item: ActivityLogItem) => {
-    onMarkRead(item.id);
-    if (item.change.type !== 'removed') {
-      onOpenCard(item.change.card);
-    }
+  const handleGroupClick = (groupItems: ActivityLogItem[]) => {
+    groupItems.forEach(item => onMarkRead(item.id));
+    const openable = groupItems.find(item => item.change.type !== 'removed');
+    if (openable) onOpenCard(openable.change.card);
     setIsOpen(false);
   };
 
@@ -241,7 +268,7 @@ export const ActivityLogButton: React.FC<ButtonProps> = ({
   // Agrupar por data
   const today = new Date().toDateString();
   const yesterday = new Date(Date.now() - 86400000).toDateString();
-  const grouped: { label: string; items: ActivityLogItem[] }[] = [];
+  const grouped: { label: string; cardGroups: { key: string; items: ActivityLogItem[] }[] }[] = [];
   const buckets: Record<string, ActivityLogItem[]> = {};
   items.forEach(item => {
     const d = new Date(item.timestamp).toDateString();
@@ -249,7 +276,7 @@ export const ActivityLogButton: React.FC<ButtonProps> = ({
     if (!buckets[label]) buckets[label] = [];
     buckets[label].push(item);
   });
-  Object.entries(buckets).forEach(([label, its]) => grouped.push({ label, items: its }));
+  Object.entries(buckets).forEach(([label, its]) => grouped.push({ label, cardGroups: groupItemsByCard(its) }));
 
   return (
     <div ref={dropdownRef} className="relative">
@@ -316,58 +343,75 @@ export const ActivityLogButton: React.FC<ButtonProps> = ({
                 <p className="text-xs mt-1 text-gray-400 dark:text-gray-600">As atualizações do board aparecerão aqui</p>
               </div>
             ) : (
-              grouped.map(({ label, items: groupItems }) => (
+              grouped.map(({ label, cardGroups }) => (
                 <div key={label}>
                   <div className="px-3 pt-2 pb-1">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                       {label}
                     </p>
                   </div>
-                  {groupItems.map(item => {
-                    const { title, detail } = getChangeLabel(item.change);
+                  {cardGroups.map(({ key, items: groupItems }) => {
+                    const latest = groupItems[0];
+                    const card = latest.change.card;
+                    const cardTitle = card.title.length > 40 ? card.title.slice(0, 40) + '…' : card.title;
+                    const anyUnread = groupItems.some(i => !i.read);
                     return (
                       <div
-                        key={item.id}
-                        onClick={() => handleItemClick(item)}
+                        key={key}
+                        onClick={() => handleGroupClick(groupItems)}
                         className={`group flex items-start gap-2.5 px-3 py-2.5 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/60 ${
-                          !item.read ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''
+                          anyUnread ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''
                         }`}
                       >
                         {/* Ponto de não lida */}
                         <div className="shrink-0 mt-1.5">
-                          {!item.read
+                          {anyUnread
                             ? <div className="w-2 h-2 rounded-full bg-amber-400" />
                             : <div className="w-2 h-2" />
                           }
                         </div>
 
-                        {/* Ícone do tipo */}
+                        {/* Ícone do tipo (da atividade mais recente) */}
                         <div className="shrink-0 mt-0.5">
-                          {getChangeIcon(item.change)}
+                          {getChangeIcon(latest.change)}
                         </div>
 
                         {/* Conteúdo */}
                         <div className="flex-1 min-w-0">
-                          <p className={`text-xs leading-snug ${
-                            !item.read
-                              ? 'font-medium text-gray-900 dark:text-gray-100'
-                              : 'text-gray-600 dark:text-gray-400'
-                          }`}>
-                            {title}
-                          </p>
-                          <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 leading-snug truncate" title={detail}>
-                            {detail}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <p className={`text-xs leading-snug truncate ${
+                              anyUnread
+                                ? 'font-medium text-gray-900 dark:text-gray-100'
+                                : 'text-gray-600 dark:text-gray-400'
+                            }`} title={card.title}>
+                              #{card.number} · {cardTitle}
+                            </p>
+                            {groupItems.length > 1 && (
+                              <span className="shrink-0 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded-full text-[10px] font-bold">
+                                {groupItems.length}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-0.5 space-y-0.5">
+                            {groupItems.map(item => {
+                              const { title, detail } = getChangeLabel(item.change);
+                              return (
+                                <p key={item.id} className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug truncate">
+                                  {title}{detail ? `: ${detail}` : ''}
+                                </p>
+                              );
+                            })}
+                          </div>
                         </div>
 
-                        {/* Tempo */}
+                        {/* Tempo (atividade mais recente) */}
                         <span className="shrink-0 text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
-                          {timeAgo(item.timestamp)}
+                          {timeAgo(latest.timestamp)}
                         </span>
 
-                        {/* Fechar item */}
+                        {/* Fechar grupo */}
                         <button
-                          onClick={e => { e.stopPropagation(); onMarkRead(item.id); }}
+                          onClick={e => { e.stopPropagation(); groupItems.forEach(i => onMarkRead(i.id)); }}
                           className="shrink-0 opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-all"
                           title="Marcar como lida"
                         >
