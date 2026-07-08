@@ -44,6 +44,21 @@ function getReasonLabel(reason: string): string {
   }
 }
 
+// Agrupa notificações do mesmo card/issue (mesmo repo + issueNumber), preservando a ordem recebida
+function groupByCard(list: GithubNotification[]): { key: string; items: GithubNotification[] }[] {
+  const map = new Map<string, GithubNotification[]>();
+  const order: string[] = [];
+  list.forEach(n => {
+    const key = n.issueNumber != null ? `${n.repo}#${n.issueNumber}` : `single:${n.id}`;
+    if (!map.has(key)) {
+      map.set(key, []);
+      order.push(key);
+    }
+    map.get(key)!.push(n);
+  });
+  return order.map(key => ({ key, items: map.get(key)! }));
+}
+
 function ReasonIcon({ reason, size = 12 }: { reason: string; size?: number }) {
   switch (reason) {
     case 'mention':
@@ -125,11 +140,11 @@ export const NotificationBell: React.FC<Props> = ({
     setSelectedIds(new Set());
   }, []);
 
-  const toggleSelect = useCallback((id: string) => {
+  const toggleGroupSelect = useCallback((groupItems: GithubNotification[]) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const allSelected = groupItems.every(n => next.has(n.id));
+      groupItems.forEach(n => allSelected ? next.delete(n.id) : next.add(n.id));
       return next;
     });
   }, []);
@@ -157,15 +172,15 @@ export const NotificationBell: React.FC<Props> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [exitSelectionMode]);
 
-  const handleNotificationClick = useCallback((notification: GithubNotification) => {
+  const handleGroupClick = useCallback((groupItems: GithubNotification[]) => {
     if (isSelecting) {
-      toggleSelect(notification.id);
+      toggleGroupSelect(groupItems);
       return;
     }
-    onMarkAsRead(notification.threadId);
-    onOpenNotification(notification);
+    groupItems.forEach(n => onMarkAsRead(n.threadId));
+    onOpenNotification(groupItems[0]);
     setIsOpen(false);
-  }, [onMarkAsRead, onOpenNotification, isSelecting, toggleSelect]);
+  }, [onMarkAsRead, onOpenNotification, isSelecting, toggleGroupSelect]);
 
   const displayCount = unreadCount > 99 ? '99+' : unreadCount > 0 ? String(unreadCount) : null;
 
@@ -294,21 +309,23 @@ export const NotificationBell: React.FC<Props> = ({
                         </button>
                       )}
                     </div>
-                    {unreadList.map(notification => {
-                      const card = notification.issueNumber != null
-                        ? allCards.find(c => Number(c.number) === Number(notification.issueNumber))
+                    {groupByCard(unreadList).map(({ key, items: groupItems }) => {
+                      const latest = groupItems.reduce((a, b) => new Date(b.updatedAt) > new Date(a.updatedAt) ? b : a);
+                      const card = latest.issueNumber != null
+                        ? allCards.find(c => Number(c.number) === Number(latest.issueNumber))
                         : undefined;
-                      const resolvedState = card?.issueState ?? issueStateCache[notification.id];
+                      const resolvedState = card?.issueState ?? groupItems.map(n => issueStateCache[n.id]).find(Boolean);
                       return (
-                        <NotificationItem
-                          key={notification.id}
-                          notification={notification}
+                        <NotificationGroupItem
+                          key={key}
+                          items={groupItems}
+                          latest={latest}
                           cardStatus={card?.status}
                           issueState={resolvedState}
                           isSelecting={isSelecting}
-                          isSelected={selectedIds.has(notification.id)}
-                          onClick={() => handleNotificationClick(notification)}
-                          onMarkRead={() => onMarkAsRead(notification.threadId)}
+                          isSelected={groupItems.every(n => selectedIds.has(n.id))}
+                          onClick={() => handleGroupClick(groupItems)}
+                          onMarkRead={() => groupItems.forEach(n => onMarkAsRead(n.threadId))}
                         />
                       );
                     })}
@@ -323,21 +340,23 @@ export const NotificationBell: React.FC<Props> = ({
                         Lidas
                       </p>
                     </div>
-                    {readList.map(notification => {
-                      const card = notification.issueNumber != null
-                        ? allCards.find(c => Number(c.number) === Number(notification.issueNumber))
+                    {groupByCard(readList).map(({ key, items: groupItems }) => {
+                      const latest = groupItems.reduce((a, b) => new Date(b.updatedAt) > new Date(a.updatedAt) ? b : a);
+                      const card = latest.issueNumber != null
+                        ? allCards.find(c => Number(c.number) === Number(latest.issueNumber))
                         : undefined;
-                      const resolvedState = card?.issueState ?? issueStateCache[notification.id];
+                      const resolvedState = card?.issueState ?? groupItems.map(n => issueStateCache[n.id]).find(Boolean);
                       return (
-                        <NotificationItem
-                          key={notification.id}
-                          notification={notification}
+                        <NotificationGroupItem
+                          key={key}
+                          items={groupItems}
+                          latest={latest}
                           cardStatus={card?.status}
                           issueState={resolvedState}
                           isSelecting={isSelecting}
-                          isSelected={selectedIds.has(notification.id)}
-                          onClick={() => handleNotificationClick(notification)}
-                          onMarkRead={() => onMarkAsRead(notification.threadId)}
+                          isSelected={groupItems.every(n => selectedIds.has(n.id))}
+                          onClick={() => handleGroupClick(groupItems)}
+                          onMarkRead={() => groupItems.forEach(n => onMarkAsRead(n.threadId))}
                         />
                       );
                     })}
@@ -379,9 +398,10 @@ export const NotificationBell: React.FC<Props> = ({
   );
 };
 
-// Item individual da lista
-function NotificationItem({
-  notification,
+// Grupo de 1+ notificações do mesmo card/issue
+function NotificationGroupItem({
+  items,
+  latest,
   cardStatus,
   issueState,
   isSelecting,
@@ -389,7 +409,8 @@ function NotificationItem({
   onClick,
   onMarkRead,
 }: {
-  notification: GithubNotification;
+  items: GithubNotification[];
+  latest: GithubNotification;
   cardStatus?: string;
   issueState?: string;
   isSelecting: boolean;
@@ -397,12 +418,15 @@ function NotificationItem({
   onClick: () => void;
   onMarkRead: () => void;
 }) {
+  const anyUnread = items.some(n => n.unread);
+  const isGroup = items.length > 1;
+
   return (
     <div
       className={`group flex items-start gap-2.5 px-3 py-2.5 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/60 ${
         isSelected
           ? 'bg-blue-100/60 dark:bg-blue-900/25'
-          : notification.unread
+          : anyUnread
           ? 'bg-blue-50/50 dark:bg-blue-900/10'
           : ''
       }`}
@@ -415,29 +439,36 @@ function NotificationItem({
             ? <CheckSquare size={14} className="text-blue-500" />
             : <Square size={14} className="text-gray-300 dark:text-gray-600 group-hover:text-gray-400" />
         ) : (
-          notification.unread
+          anyUnread
             ? <div className="w-2 h-2 rounded-full bg-blue-500 mt-0.5" />
             : <div className="w-2 h-2 mt-0.5" />
         )}
       </div>
 
-      {/* Ícone do motivo */}
+      {/* Ícone do motivo (da notificação mais recente) */}
       <div className="shrink-0 mt-0.5">
-        <ReasonIcon reason={notification.reason} size={13} />
+        <ReasonIcon reason={latest.reason} size={13} />
       </div>
 
       {/* Conteúdo */}
       <div className="flex-1 min-w-0">
-        <p className={`text-xs leading-snug truncate ${
-          notification.unread
-            ? 'font-medium text-gray-900 dark:text-gray-100'
-            : 'text-gray-600 dark:text-gray-400'
-        }`}>
-          {notification.title}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className={`text-xs leading-snug truncate ${
+            anyUnread
+              ? 'font-medium text-gray-900 dark:text-gray-100'
+              : 'text-gray-600 dark:text-gray-400'
+          }`}>
+            {latest.title}
+          </p>
+          {isGroup && (
+            <span className="shrink-0 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 rounded-full text-[10px] font-bold">
+              {items.length}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate">
-            {notification.repo}
+            {latest.repo}
           </span>
           {cardStatus && (
             <>
@@ -463,20 +494,38 @@ function NotificationItem({
               </span>
             </>
           )}
-          <span className="text-[10px] text-gray-300 dark:text-gray-600">·</span>
-          <span className={`text-[10px] px-1 py-0.5 rounded ${getReasonColor(notification.reason)}`}>
-            {getReasonLabel(notification.reason)}
-          </span>
+          {!isGroup && (
+            <>
+              <span className="text-[10px] text-gray-300 dark:text-gray-600">·</span>
+              <span className={`text-[10px] px-1 py-0.5 rounded ${getReasonColor(latest.reason)}`}>
+                {getReasonLabel(latest.reason)}
+              </span>
+            </>
+          )}
           <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-auto shrink-0">
-            {timeAgo(notification.updatedAt)}
+            {timeAgo(latest.updatedAt)}
           </span>
         </div>
+
+        {/* Uma linha por notificação, quando agrupado */}
+        {isGroup && (
+          <div className="mt-1 space-y-0.5">
+            {items.map(n => (
+              <div key={n.id} className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 leading-snug">
+                <span className={`px-1 py-0.5 rounded shrink-0 ${getReasonColor(n.reason)}`}>
+                  {getReasonLabel(n.reason)}
+                </span>
+                <span className="truncate">{timeAgo(n.updatedAt)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Ações — escondidas em modo seleção */}
       {!isSelecting && (
         <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
-          {notification.unread && (
+          {anyUnread && (
             <button
               onClick={onMarkRead}
               className="p-0.5 rounded text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors"
@@ -485,9 +534,9 @@ function NotificationItem({
               <Check size={11} />
             </button>
           )}
-          {notification.subjectHtmlUrl && (
+          {latest.subjectHtmlUrl && (
             <a
-              href={notification.subjectHtmlUrl}
+              href={latest.subjectHtmlUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="p-0.5 rounded text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
