@@ -28,6 +28,13 @@ import { getTheme, applyThemeColors } from './themes';
 import { applyFontSettings } from './utils/fontSettings';
 import { useRealtimeUpdates, type CardChange } from './hooks/useRealtimeUpdates';
 import { useGithubNotifications, type GithubNotification, DEFAULT_NOTIFICATION_SETTINGS } from './hooks/useGithubNotifications';
+import { DEFAULT_CARD_SORT, type CardSortOption } from './utils/cardSort';
+import {
+  getSavePreferencesEnabled,
+  setSavePreferencesEnabled as persistSavePreferencesEnabled,
+  loadPreference,
+  savePreference,
+} from './utils/preferenceStorage';
 
 function App() {
   // Inicializar tema do localStorage ANTES de qualquer renderização
@@ -113,6 +120,25 @@ function App() {
     const saved = localStorage.getItem('github_compact_card_view');
     return saved ? JSON.parse(saved) : false;
   });
+
+  // Estado para ordenação visual dos cards dentro de cada coluna (não altera dados reais)
+  const [savePreferencesEnabled, setSavePreferencesEnabledState] = useState<boolean>(() => getSavePreferencesEnabled());
+  const [columnSortOptions, setColumnSortOptions] = useState<Record<string, CardSortOption>>(() =>
+    loadPreference('github_column_sort_options', {} as Record<string, CardSortOption>)
+  );
+
+  const handleSavePreferencesToggle = (enabled: boolean) => {
+    setSavePreferencesEnabledState(enabled);
+    persistSavePreferencesEnabled(enabled);
+  };
+
+  const handleColumnSortChange = (columnId: string, option: CardSortOption) => {
+    setColumnSortOptions((prev) => {
+      const next = { ...prev, [columnId]: option };
+      savePreference('github_column_sort_options', next);
+      return next;
+    });
+  };
 
   // Estados para atualizações em tempo real
   const [recentChanges, setRecentChanges] = useState<CardChange[]>([]);
@@ -1050,6 +1076,8 @@ function App() {
                   onToggleCollapse={() => handleToggleColumnCollapse(column.id)}
                   compactCardView={compactCardView}
                   onDropCard={handleMoveCard}
+                  sortOption={columnSortOptions[column.id] ?? DEFAULT_CARD_SORT}
+                  onSortChange={(option) => handleColumnSortChange(column.id, option)}
                 />
               ))}
             </div>
@@ -1114,6 +1142,8 @@ function App() {
         onNotificationSettingsChange={handleNotificationSettings}
         activitySettings={activitySettings}
         onActivitySettingsChange={handleActivitySettings}
+        savePreferencesEnabled={savePreferencesEnabled}
+        onSavePreferencesEnabledChange={handleSavePreferencesToggle}
       />
 
       {/* Filter Panel */}

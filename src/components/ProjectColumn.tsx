@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import type { ProjectColumn as ProjectColumnType, ProjectCard as ProjectCardType } from '../types';
 import { ProjectCard } from './ProjectCard';
 import { CardGroup } from './CardGroup';
 import { groupCardsByPerson, groupCardsByTag, groupCardsByPriority, groupCardsByCity, getUngroupedCards } from '../utils/filterUtils';
 import type { TagGroup } from '../utils/viewTagsMapping';
+import { sortCards, CARD_SORT_FIELDS, DEFAULT_CARD_SORT, type CardSortOption } from '../utils/cardSort';
 
 interface Props {
   column: ProjectColumnType;
@@ -24,6 +26,8 @@ interface Props {
   onToggleCollapse?: () => void;
   compactCardView?: boolean;
   onDropCard?: (cardId: string, targetStatus: string) => Promise<void>;
+  sortOption?: CardSortOption;
+  onSortChange?: (option: CardSortOption) => void;
 }
 
 export const ProjectColumn: React.FC<Props> = ({
@@ -45,8 +49,24 @@ export const ProjectColumn: React.FC<Props> = ({
   onToggleCollapse,
   compactCardView = false,
   onDropCard,
+  sortOption = DEFAULT_CARD_SORT,
+  onSortChange,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isSortMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
+        setIsSortMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isSortMenuOpen]);
+
   // Determinar grupos e cards não agrupados
   let groups: ReturnType<typeof groupCardsByPerson> = [];
   let ungroupedCards = column.cards;
@@ -69,6 +89,8 @@ export const ProjectColumn: React.FC<Props> = ({
     ungroupedCards = getUngroupedCards(column.cards, groups);
     groupType = 'city';
   }
+
+  ungroupedCards = sortCards(ungroupedCards, sortOption);
 
   const hasGroups = groups.length > 0;
   const hasContent = hasGroups || ungroupedCards.length > 0;
@@ -121,9 +143,52 @@ export const ProjectColumn: React.FC<Props> = ({
         title="Clique para minimizar"
       >
         <h3 className="font-semibold text-gray-800 dark:text-gray-100 text-sm truncate">{column.name}</h3>
-        <span className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium px-2 py-0.5 rounded-full shrink-0 ml-2">
-          {column.cards.length}
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0 ml-2">
+          <span className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium px-2 py-0.5 rounded-full">
+            {column.cards.length}
+          </span>
+          {onSortChange && (
+            <div className="relative" ref={sortMenuRef} onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={() => setIsSortMenuOpen((v) => !v)}
+                title="Ordenar cards (apenas visual, não altera os cards no GitHub)"
+                className={`p-1 rounded transition-colors ${
+                  sortOption.field !== 'none'
+                    ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'
+                    : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                <ArrowUpDown size={13} />
+              </button>
+              {isSortMenuOpen && (
+                <div className="absolute right-0 top-full mt-1 z-20 w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1">
+                  {CARD_SORT_FIELDS.map((opt) => {
+                    const isActive = sortOption.field === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          onSortChange({
+                            field: opt.value,
+                            direction: isActive ? (sortOption.direction === 'asc' ? 'desc' : 'asc') : opt.defaultDirection,
+                          });
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-1.5 text-xs text-left hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors ${
+                          isActive ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        <span>{opt.label}</span>
+                        {isActive && opt.value !== 'none' && (
+                          sortOption.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
@@ -140,7 +205,7 @@ export const ProjectColumn: React.FC<Props> = ({
                   key={group.name}
                   groupName={group.name}
                   groupType={groupType}
-                  cards={group.cards}
+                  cards={sortCards(group.cards, sortOption)}
                   onCardClick={onCardClick || (() => {})}
                   cardAnimations={cardAnimations}
                   groupColor={groupColor}

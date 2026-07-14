@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, User, Palette, Layers, Settings as SettingsIcon, Building, Hash, Key, Calendar, GitBranch, MessageSquare, Download, Upload, CheckCircle, AlertCircle, HardDrive, Type, Package, Bell, AtSign, UserCheck, Volume2, VolumeX, Play, Monitor, History } from 'lucide-react';
+import { X, User, Palette, Layers, Settings as SettingsIcon, Building, Hash, Key, Calendar, GitBranch, MessageSquare, Download, Upload, CheckCircle, AlertCircle, HardDrive, Type, Package, Bell, AtSign, UserCheck, Volume2, VolumeX, Play, Monitor, History, SlidersHorizontal } from 'lucide-react';
 import { ViewManagerModal } from './ViewManagerModal';
 import { RepoMappingConfig } from './RepoMappingConfig';
 import { TemplateManager } from './TemplateManager';
@@ -65,6 +65,9 @@ interface Props {
   onNotificationSettingsChange: (settings: NotificationSettings) => void;
   activitySettings: ActivityMonitorSettings;
   onActivitySettingsChange: (settings: ActivityMonitorSettings) => void;
+  // Persistência de preferências de UI (ex: ordenação de cards)
+  savePreferencesEnabled: boolean;
+  onSavePreferencesEnabledChange: (enabled: boolean) => void;
 }
 
 export const SettingsPanel: React.FC<Props> = ({
@@ -85,6 +88,8 @@ export const SettingsPanel: React.FC<Props> = ({
   onNotificationSettingsChange,
   activitySettings,
   onActivitySettingsChange,
+  savePreferencesEnabled,
+  onSavePreferencesEnabledChange,
 }) => {
   const [activeTab, setActiveTab] = useState<'account' | 'theme' | 'views' | 'templates' | 'mappings' | 'release' | 'notifications' | 'backup'>('account');
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -444,6 +449,8 @@ export const SettingsPanel: React.FC<Props> = ({
         'github-project-tag-repo-mapping': 'Mapeamento tag → repo',
         'github-project-comment-templates': 'Templates de comentário',
         psi_release_link_repo: 'Repo dos links de release',
+        github_column_sort_options: 'Ordenação visual de cards por coluna',
+        github_save_ui_preferences: 'Salvar preferências entre sessões',
       };
 
       const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -462,6 +469,30 @@ export const SettingsPanel: React.FC<Props> = ({
 
       return (
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Persistência de preferências de UI */}
+          <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <SlidersHorizontal size={18} className="text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-gray-100">Preferências de interface</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Controla se ajustes de exibição, como a ordenação dos cards nas colunas, são lembrados entre sessões.
+                </p>
+              </div>
+            </div>
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-sm text-gray-700 dark:text-gray-300">Salvar preferências entre sessões</span>
+              <Toggle checked={savePreferencesEnabled} onChange={() => onSavePreferencesEnabledChange(!savePreferencesEnabled)} />
+            </label>
+            <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+              {savePreferencesEnabled
+                ? 'Ativado: a ordenação escolhida em cada coluna é mantida ao recarregar a página.'
+                : 'Desativado: a ordenação escolhida volta ao padrão a cada recarregamento da página.'}
+            </p>
+          </div>
+
           {/* Exportar */}
           <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-5">
             <div className="flex items-center gap-3 mb-3">
