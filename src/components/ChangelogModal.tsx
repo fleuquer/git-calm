@@ -1,4 +1,5 @@
-import { X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { X, ChevronDown, ChevronRight } from "lucide-react";
 import { CHANGELOG } from "../version";
 import type { Change } from "../version";
 
@@ -10,7 +11,7 @@ interface Props {
 function ChangePill({ type }: { type: Change["type"] }) {
   const config = {
     feat: {
-      label: "Novo",
+      label: "Novidade",
       cls: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
     },
     fix: {
@@ -33,12 +34,23 @@ function ChangePill({ type }: { type: Change["type"] }) {
 }
 
 export function ChangelogModal({ isOpen, onClose }: Props) {
+  // Ao abrir, só a versão mais recente fica expandida; abrir outra fecha a anterior (sempre 1 aberta).
+  const [expandedVersion, setExpandedVersion] = useState<string | null>(
+    () => CHANGELOG[0]?.version ?? null
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      setExpandedVersion(CHANGELOG[0]?.version ?? null);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full max-w-4xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl flex flex-col max-h-[80vh]">
+      <div className="relative w-full max-w-4xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl flex flex-col h-[80vh]">
         {/* Header */}
         <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div>
@@ -58,35 +70,51 @@ export function ChangelogModal({ isOpen, onClose }: Props) {
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-6">
-          {CHANGELOG.map((entry) => (
-            <div key={entry.version}>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-sm font-mono font-bold px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md">
-                  v{entry.version}
-                </span>
-                {entry.label && (
-                  <span className="text-sm px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full font-medium">
-                    {entry.label}
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-2">
+          {CHANGELOG.map((entry) => {
+            const isExpanded = expandedVersion === entry.version;
+            return (
+              <div
+                key={entry.version}
+                className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+              >
+                <button
+                  onClick={() => setExpandedVersion(entry.version)}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors text-left"
+                >
+                  {isExpanded ? (
+                    <ChevronDown size={16} className="text-gray-400 dark:text-gray-500 shrink-0" />
+                  ) : (
+                    <ChevronRight size={16} className="text-gray-400 dark:text-gray-500 shrink-0" />
+                  )}
+                  <span className="text-sm font-mono font-bold px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md">
+                    v{entry.version}
                   </span>
-                )}
-                <span className="text-sm text-gray-400 dark:text-gray-500 ml-auto">
-                  {entry.date}
-                </span>
-              </div>
-
-              <ul className="space-y-2">
-                {entry.changes.map((change, i) => (
-                  <li key={i} className="flex items-start gap-2.5">
-                    <ChangePill type={change.type} />
-                    <span className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                      {change.description}
+                  {entry.label && (
+                    <span className="text-sm px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-full font-medium">
+                      {entry.label}
                     </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+                  )}
+                  <span className="text-sm text-gray-400 dark:text-gray-500 ml-auto">
+                    {entry.date}
+                  </span>
+                </button>
+
+                {isExpanded && (
+                  <ul className="space-y-2 px-4 pb-3 pt-1">
+                    {entry.changes.map((change, i) => (
+                      <li key={i} className="flex items-start gap-2.5">
+                        <ChangePill type={change.type} />
+                        <span className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                          {change.description}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
