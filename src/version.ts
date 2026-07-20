@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '0.1.2';
+export const CURRENT_VERSION = '0.1.3';
 export const VERSION_STORAGE_KEY = 'app_last_seen_version';
 
 export interface Change {
@@ -15,14 +15,23 @@ export interface VersionEntry {
 
 export const CHANGELOG: VersionEntry[] = [
   {
+    version: '0.1.3',
+    date: '2026-07-14',
+    label: '',
+    changes: [
+      { type: 'improvement', description: 'Adição de accordion para exibir detalhes de cada versão' },
+      { type: 'feat', description: 'Ordenação visual de cards por coluna, com possibilidade de salvar preferências entre sessões' },
+    ]
+  },
+  {
     version: '0.1.2',
     date: '2026-07-08',
     label: '',
     changes: [
+      { type: 'fix', description: 'Removida a exigência de versionamento para cards com repositórios secundários detectados durante a geração do release.' },
       { type: 'improvement', description: 'Redução da quantidade de dados de atividades armazenados no localStorage, melhorando a performance e a privacidade.' },
       { type: 'improvement', description: 'As notificações agora são agrupadas por card, reduzindo a quantidade de notificações e a poluição visual.' },
       { type: 'improvement', description: 'As atividades agora são agrupadas por card, facilitando a visualização e reduzindo a poluição visual.' },
-      { type: 'fix', description: 'Removida a exigência de versionamento para cards com repositórios secundários detectados durante a geração do release.' },
       { type: 'improvement', description: 'As configurações de notificações e atividades foram centralizadas nas configurações gerais e receberam uma nova interface.' },
       { type: 'feat', description: 'As notificações da aplicação agora também podem ser exibidas diretamente no sistema operacional.' }
     ]
@@ -32,12 +41,12 @@ export const CHANGELOG: VersionEntry[] = [
     date: '2026-06-26',
     label: '',
     changes: [
-      { type: 'feat', description: 'Adicionado configuração de repositório personalizado para geração de release' },
+      { type: 'fix', description: 'Corrigido filtros de tags para guias/colunas de acordo com as labels do GitHub' },
       { type: 'improvement', description: 'Melhorias diversas geração de release' },
       { type: 'improvement', description: 'Melhorias diversas para seção de comentários nos cards' },
+      { type: 'feat', description: 'Adicionado configuração de repositório personalizado para geração de release' },
       { type: 'feat', description: 'Adicionado opção de reportar bugs e solicitar features diretamente no app' },
       { type: 'feat', description: 'Adicionado numero da versão com modal para detalhes' },
-      { type: 'fix', description: 'Corrigido filtros de tags para guias/colunas de acordo com as labels do GitHub' },
     ],
   },
   {
@@ -45,6 +54,8 @@ export const CHANGELOG: VersionEntry[] = [
     date: '2026-05-28',
     label: 'Lançamento Beta',
     changes: [
+      { type: 'improvement', description: 'Suporte a múltiplos temas visuais (claro, escuro e variantes)' },
+      { type: 'improvement', description: 'Visão compacta dos cards para boards com muitos itens' },
       { type: 'feat', description: 'Board kanban integrado ao GitHub Projects com drag & drop entre colunas' },
       { type: 'feat', description: 'Filtros por label, status e responsável com clique direto nos cards' },
       { type: 'feat', description: 'Atualizações em tempo real com polling automático a cada 3 minutos' },
@@ -52,8 +63,6 @@ export const CHANGELOG: VersionEntry[] = [
       { type: 'feat', description: 'Relatório diário gerado automaticamente a partir dos cards ativos' },
       { type: 'feat', description: 'Geração de notas de release com cards concluídos' },
       { type: 'feat', description: 'Agrupamento de cards por pessoa, tag ou prioridade' },
-      { type: 'improvement', description: 'Suporte a múltiplos temas visuais (claro, escuro e variantes)' },
-      { type: 'improvement', description: 'Visão compacta dos cards para boards com muitos itens' },
     ],
   },
 ];

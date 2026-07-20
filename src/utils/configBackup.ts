@@ -52,6 +52,9 @@ const CONFIG_KEYS = [
   // Ordenação visual de cards por coluna
   'github_column_sort_options',
   'github_save_ui_preferences',
+  // Retrabalho
+  'github_rework_columns',
+  'github_rework_history',
 ] as const;
 
 export type ConfigBackup = {

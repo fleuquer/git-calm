@@ -13,6 +13,7 @@ import { playNotificationSound } from '../utils/notificationSounds';
 import { getSystemNotificationPermission, requestSystemNotificationPermission } from '../utils/systemNotifications';
 import { FONT_SIZES, FONT_FAMILIES, getFontSize, getFontFamily, saveFontSize, saveFontFamily, type FontSizeId, type FontFamilyId } from '../utils/fontSettings';
 import { getReleaseLinkRepo, saveReleaseLinkRepo } from '../utils/releaseSettings';
+import { getReworkColumns, setReworkColumns } from '../utils/reworkColumns';
 
 function SectionCard({ icon, title, className, disabled, children }: { icon: React.ReactNode; title: string; className?: string; disabled?: boolean; children: React.ReactNode }) {
   return (
@@ -100,6 +101,7 @@ export const SettingsPanel: React.FC<Props> = ({
   const [currentFontFamily, setCurrentFontFamily] = useState<FontFamilyId>(getFontFamily);
   const [releaseLinkRepo, setReleaseLinkRepo] = useState<string>(getReleaseLinkRepo);
   const [releaseLinkRepoSaved, setReleaseLinkRepoSaved] = useState(false);
+  const [reworkColumns, setReworkColumnsState] = useState<string[]>(getReworkColumns);
   const [sysPermission, setSysPermission] = useState(() => getSystemNotificationPermission());
 
   // Resetar para aba account quando abrir
@@ -158,8 +160,42 @@ export const SettingsPanel: React.FC<Props> = ({
     }
 
     if (activeTab === 'mappings') {
+      const toggleReworkColumn = (statusName: string) => {
+        const next = reworkColumns.includes(statusName)
+          ? reworkColumns.filter(c => c !== statusName)
+          : [...reworkColumns, statusName];
+        setReworkColumnsState(next);
+        setReworkColumns(next);
+      };
+
       return (
         <div className="flex-1 overflow-y-auto">
+          <div className="p-6 pb-0">
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <History size={15} className="text-red-500" />
+                <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Colunas de retrabalho</h4>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+                Marque a(s) coluna(s) que representam retorno/retrabalho (ex: "Retorno", "Correção"). Usado no Relatório de Atividade para indicar cards que voltaram após execução. Só conta movimentações detectadas a partir de agora, com o app aberto.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2">
+                {allStatuses.map((statusName) => (
+                  <label key={statusName} className="flex items-center gap-1.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={reworkColumns.includes(statusName)}
+                      onChange={() => toggleReworkColumn(statusName)}
+                      className="w-3.5 h-3.5 rounded accent-red-500"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white truncate">
+                      {statusName}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
           <RepoMappingConfig
             isOpen={true}
             inline={true}

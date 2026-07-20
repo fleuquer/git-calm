@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileText, RefreshCw, Calendar, Clock, Activity, MessageSquare, GitCommit, Users, XCircle, AlertTriangle, Wrench, Sparkles, MapPin, Filter } from 'lucide-react';
+import { X, FileText, RefreshCw, Calendar, Clock, Activity, MessageSquare, GitCommit, Users, XCircle, AlertTriangle, Wrench, Sparkles, MapPin, Filter, Undo2 } from 'lucide-react';
 import type { ProjectCard, ProjectColumn, UserDailyReport } from '../types';
 import { getPeopleForView } from '../utils/viewPeopleMapping';
 import { GitHubService } from '../services/github';
 import { CardDetailModal } from './CardDetailModal';
+import { getReworkInfo } from '../utils/reworkTracking';
 
 interface CardActivities {
   card: ProjectCard;
@@ -46,6 +47,7 @@ export const DailyReportModal: React.FC<Props> = ({
     return columns.map(col => col.name);
   });
   const [showColumnFilter, setShowColumnFilter] = useState(false);
+  const [personFilter, setPersonFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [dateTo, setDateTo] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [activePreset, setActivePreset] = useState<string>('hoje');
@@ -215,6 +217,20 @@ export const DailyReportModal: React.FC<Props> = ({
     return <Icon size={14} style={{ color: typeInfo.color }} title={labelName} />;
   };
 
+  const getReworkBadge = (cardNumber: number) => {
+    const rework = getReworkInfo(cardNumber);
+    if (!rework) return null;
+    return (
+      <span
+        className="flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-semibold shrink-0"
+        title={`Retornou para retrabalho ${rework.count}x — última vez em ${new Date(rework.lastAt).toLocaleDateString('pt-BR')}`}
+      >
+        <Undo2 size={10} />
+        {rework.count}x
+      </span>
+    );
+  };
+
   const isCityLabel = (labelName: string) => {
     return /^[A-Z]{2}-/.test(labelName);
   };
@@ -280,13 +296,19 @@ export const DailyReportModal: React.FC<Props> = ({
 
     try {
       const service = new GitHubService(token);
-      const people = getPeopleForView(currentViewId);
+      const allPeople = getPeopleForView(currentViewId);
+      const people = personFilter === 'all' ? allPeople : allPeople.filter(p => p === personFilter);
 
       console.log('👥 Pessoas encontradas:', people);
       console.log('📊 View atual:', currentViewId);
 
-      if (people.length === 0) {
+      if (allPeople.length === 0) {
         alert('Nenhuma pessoa mapeada para esta guia. Configure o mapeamento em Configurações → Guia → Pessoas');
+        setIsLoading(false);
+        return;
+      }
+      if (people.length === 0) {
+        alert('Pessoa selecionada não está mapeada para esta guia.');
         setIsLoading(false);
         return;
       }
@@ -472,11 +494,17 @@ export const DailyReportModal: React.FC<Props> = ({
         markdown += `- Status: ${report.summary.mainCard.status}\n\n`;
       }
 
+      const reworkCount = report.cardActivities?.filter(ca => getReworkInfo(ca.card.number)).length ?? 0;
+
       markdown += `**Resumo:**\n`;
       markdown += `- Total de atividades: ${report.summary.totalActivities}\n`;
       markdown += `- Cards trabalhados: ${report.summary.cardsWorked}\n`;
       markdown += `- Comentários: ${report.summary.commentsAdded}\n`;
-      markdown += `- Commits: ${report.summary.commitsMade}\n\n`;
+      markdown += `- Commits: ${report.summary.commitsMade}\n`;
+      if (reworkCount > 0) {
+        markdown += `- Cards com retrabalho: ${reworkCount}\n`;
+      }
+      markdown += `\n`;
 
       if (report.activities.length > 0) {
         markdown += `**Atividades Detalhadas:**\n\n`;
@@ -594,6 +622,21 @@ export const DailyReportModal: React.FC<Props> = ({
               />
             </div>
 
+            {/* Filtro de pessoa */}
+            <div className="flex items-center gap-1.5">
+              <Users size={14} className="text-gray-400" />
+              <select
+                value={personFilter}
+                onChange={(e) => setPersonFilter(e.target.value)}
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-xs"
+              >
+                <option value="all">Todos</option>
+                {getPeopleForView(currentViewId).map((person) => (
+                  <option key={person} value={person}>{person}</option>
+                ))}
+              </select>
+            </div>
+
             <button
               onClick={loadDailyReports}
               disabled={isLoading}
@@ -675,6 +718,7 @@ export const DailyReportModal: React.FC<Props> = ({
                   const palette = ['#3b82f6','#10b981','#8b5cf6','#f97316','#ec4899','#14b8a6','#f43f5e','#6366f1'];
                   const idx = report.user.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % palette.length;
                   const repos = [...new Set(report.activities.filter((a: any) => a.repo).map((a: any) => a.repo as string))];
+                  const reworkCount = report.cardActivities?.filter(ca => getReworkInfo(ca.card.number)).length ?? 0;
                   const isSelected = selectedDevUsername === report.user;
                   return (
                     <button
@@ -699,6 +743,11 @@ export const DailyReportModal: React.FC<Props> = ({
                             <span className="flex items-center gap-1"><GitCommit size={10} />{report.summary.commitsMade}</span>
                             <span className="flex items-center gap-1"><MessageSquare size={10} />{report.summary.commentsAdded}</span>
                             <span className="flex items-center gap-1"><Activity size={10} />{report.summary.cardsWorked} card{report.summary.cardsWorked !== 1 ? 's' : ''}</span>
+                            {reworkCount > 0 && (
+                              <span className="flex items-center gap-1 text-red-600 dark:text-red-400 font-semibold">
+                                <Undo2 size={10} />{reworkCount}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -738,6 +787,7 @@ export const DailyReportModal: React.FC<Props> = ({
                   const palette = ['#3b82f6','#10b981','#8b5cf6','#f97316','#ec4899','#14b8a6','#f43f5e','#6366f1'];
                   const idx = report.user.split('').reduce((a: number, c: string) => a + c.charCodeAt(0), 0) % palette.length;
                   const repos = [...new Set(report.activities.filter((a: any) => a.repo).map((a: any) => a.repo as string))];
+                  const reworkCount = report.cardActivities?.filter(ca => getReworkInfo(ca.card.number)).length ?? 0;
                   return (
                     <div className="p-6 max-w-3xl">
                       {/* Header do dev */}
@@ -779,6 +829,12 @@ export const DailyReportModal: React.FC<Props> = ({
                             <p className="text-xl font-bold text-gray-900 dark:text-white">{report.summary.cardsWorked}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">cards</p>
                           </div>
+                          {reworkCount > 0 && (
+                            <div className="text-center px-3 py-1.5" title="Cards que voltaram para uma coluna de retrabalho">
+                              <p className="text-xl font-bold text-red-600 dark:text-red-400">{reworkCount}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">retrabalho</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                       {repos.length > 0 && (
@@ -822,11 +878,14 @@ export const DailyReportModal: React.FC<Props> = ({
                                     </div>
                                   ))}
                               </div>
-                              {report.summary.mainCard.timeSpent && (
-                                <span className="text-xs text-orange-600 dark:text-orange-400 font-semibold whitespace-nowrap">
-                                  🕐 {report.summary.mainCard.timeSpent}
-                                </span>
-                              )}
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {getReworkBadge(report.summary.mainCard.number)}
+                                {report.summary.mainCard.timeSpent && (
+                                  <span className="text-xs text-orange-600 dark:text-orange-400 font-semibold whitespace-nowrap">
+                                    🕐 {report.summary.mainCard.timeSpent}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">
                               {report.summary.mainCard.title}
@@ -891,6 +950,7 @@ export const DailyReportModal: React.FC<Props> = ({
                                               ))}
                                           </div>
                                           <div className="flex items-center gap-2 shrink-0">
+                                            {getReworkBadge(cardActivity.card.number)}
                                             {cardActivity.totalTimeInExecution && (
                                               <span className="text-xs text-orange-600 dark:text-orange-400 font-semibold">
                                                 🕐 {cardActivity.totalTimeInExecution}

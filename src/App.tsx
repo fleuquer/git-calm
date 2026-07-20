@@ -29,6 +29,8 @@ import { applyFontSettings } from './utils/fontSettings';
 import { useRealtimeUpdates, type CardChange } from './hooks/useRealtimeUpdates';
 import { useGithubNotifications, type GithubNotification, DEFAULT_NOTIFICATION_SETTINGS } from './hooks/useGithubNotifications';
 import { DEFAULT_CARD_SORT, type CardSortOption } from './utils/cardSort';
+import { getReworkColumns } from './utils/reworkColumns';
+import { recordReworkVisit } from './utils/reworkTracking';
 import {
   getSavePreferencesEnabled,
   setSavePreferencesEnabled as persistSavePreferencesEnabled,
@@ -422,6 +424,17 @@ function App() {
 
     const filtered = filterActivityChanges(changes, activitySettings);
     if (filtered.length === 0) return;
+
+    // Registrar visitas a colunas de retrabalho (rastreamento local, só a partir de agora)
+    const reworkColumns = getReworkColumns();
+    if (reworkColumns.length > 0) {
+      const now = new Date().toISOString();
+      filtered.forEach(change => {
+        if (change.type === 'moved' && change.toColumn && reworkColumns.includes(change.toColumn)) {
+          recordReworkVisit(change.card.number, change.toColumn, now);
+        }
+      });
+    }
 
     // Atualizar notificações (toast rápido)
     setRecentChanges(filtered);
