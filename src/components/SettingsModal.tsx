@@ -34,6 +34,7 @@ export const SettingsModal: React.FC<Props> = ({
       isOpen={isOpen}
       onClose={onClose}
       availableTags={allLabels}
+      allStatuses={[]}
       org={org}
       token={token}
       availableViews={availableViews}

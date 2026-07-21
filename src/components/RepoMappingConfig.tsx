@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Save, Tag, FolderGit2, RefreshCw, Layers, Edit2, Users, EyeOff, Eye } from 'lucide-react';
+import { X, Plus, Trash2, Save, Tag, FolderGit2, RefreshCw, Layers, Edit2, Users, EyeOff, Eye, History } from 'lucide-react';
+import { getReworkColumns, setReworkColumns } from '../utils/reworkColumns';
 import {
   loadUserRepoMapping,
   saveUserRepoMapping,
@@ -30,6 +31,7 @@ interface Props {
   onClose: () => void;
   availableTags: string[];  // Tags únicas dos cards
   availableViews: ViewTab[]; // Views disponíveis
+  allStatuses: string[];    // Colunas/status disponíveis no board
   org: string;              // Organização GitHub
   token: string;            // Token de autenticação
   inline?: boolean;         // Se true, renderiza sem backdrop/modal
@@ -40,12 +42,24 @@ export const RepoMappingConfig: React.FC<Props> = ({
   onClose,
   availableTags,
   availableViews,
+  allStatuses,
   org,
   token,
   inline = false
 }) => {
   // Aba ativa
-  const [activeTab, setActiveTab] = useState<'tags' | 'views' | 'people' | 'viewtags' | 'hiddenlabels'>('tags');
+  const [activeTab, setActiveTab] = useState<'tags' | 'views' | 'people' | 'viewtags' | 'hiddenlabels' | 'rework'>('tags');
+
+  // Estados para Colunas de Retrabalho
+  const [reworkColumns, setReworkColumnsState] = useState<string[]>(getReworkColumns);
+
+  const toggleReworkColumn = (statusName: string) => {
+    const next = reworkColumns.includes(statusName)
+      ? reworkColumns.filter(c => c !== statusName)
+      : [...reworkColumns, statusName];
+    setReworkColumnsState(next);
+    setReworkColumns(next);
+  };
 
   // Estados para Tags → Repos
   const [mappings, setMappings] = useState<UserRepoMapping[]>([]);
@@ -497,6 +511,17 @@ export const RepoMappingConfig: React.FC<Props> = ({
           >
             <EyeOff size={16} />
             Labels Ocultas
+          </button>
+          <button
+            onClick={() => setActiveTab('rework')}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'rework'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            <History size={16} />
+            Retrabalho
           </button>
         </div>
 
@@ -1284,6 +1309,34 @@ export const RepoMappingConfig: React.FC<Props> = ({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Tab: Colunas de Retrabalho */}
+          {activeTab === 'rework' && (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <History size={15} className="text-red-500" />
+                <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Colunas de retrabalho</h4>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+                Marque a(s) coluna(s) que representam retorno/retrabalho (ex: "Retorno", "Correção"). Usado no Relatório de Atividade para indicar cards que voltaram após execução. Só conta movimentações detectadas a partir de agora, com o app aberto.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2">
+                {allStatuses.map((statusName) => (
+                  <label key={statusName} className="flex items-center gap-1.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={reworkColumns.includes(statusName)}
+                      onChange={() => toggleReworkColumn(statusName)}
+                      className="w-3.5 h-3.5 rounded accent-red-500"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white truncate">
+                      {statusName}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
           )}
 
