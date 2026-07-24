@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Save, Tag, FolderGit2, RefreshCw, Layers, Edit2, Users, EyeOff, Eye, History } from 'lucide-react';
+import { X, Plus, Trash2, Save, Tag, FolderGit2, RefreshCw, Layers, Edit2, Users, EyeOff, Eye, History, Ban } from 'lucide-react';
 import { getReworkColumns, setReworkColumns } from '../utils/reworkColumns';
+import { getBlockedColumns, setBlockedColumns } from '../utils/blockedColumns';
 import {
   loadUserRepoMapping,
   saveUserRepoMapping,
@@ -48,7 +49,7 @@ export const RepoMappingConfig: React.FC<Props> = ({
   inline = false
 }) => {
   // Aba ativa
-  const [activeTab, setActiveTab] = useState<'tags' | 'views' | 'people' | 'viewtags' | 'hiddenlabels' | 'rework'>('tags');
+  const [activeTab, setActiveTab] = useState<'tags' | 'views' | 'people' | 'viewtags' | 'hiddenlabels' | 'rework' | 'blocked'>('tags');
 
   // Estados para Colunas de Retrabalho
   const [reworkColumns, setReworkColumnsState] = useState<string[]>(getReworkColumns);
@@ -59,6 +60,17 @@ export const RepoMappingConfig: React.FC<Props> = ({
       : [...reworkColumns, statusName];
     setReworkColumnsState(next);
     setReworkColumns(next);
+  };
+
+  // Estados para Colunas de Bloqueio/Impedimento
+  const [blockedColumns, setBlockedColumnsState] = useState<string[]>(getBlockedColumns);
+
+  const toggleBlockedColumn = (statusName: string) => {
+    const next = blockedColumns.includes(statusName)
+      ? blockedColumns.filter(c => c !== statusName)
+      : [...blockedColumns, statusName];
+    setBlockedColumnsState(next);
+    setBlockedColumns(next);
   };
 
   // Estados para Tags → Repos
@@ -522,6 +534,17 @@ export const RepoMappingConfig: React.FC<Props> = ({
           >
             <History size={16} />
             Retrabalho
+          </button>
+          <button
+            onClick={() => setActiveTab('blocked')}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'blocked'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            <Ban size={16} />
+            Bloqueios
           </button>
         </div>
 
@@ -1330,6 +1353,34 @@ export const RepoMappingConfig: React.FC<Props> = ({
                       checked={reworkColumns.includes(statusName)}
                       onChange={() => toggleReworkColumn(statusName)}
                       className="w-3.5 h-3.5 rounded accent-red-500"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white truncate">
+                      {statusName}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Tab: Colunas de Bloqueio/Impedimento */}
+          {activeTab === 'blocked' && (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Ban size={15} className="text-orange-500" />
+                <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Colunas de bloqueio/impedimento</h4>
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">
+                Marque a(s) coluna(s) que representam bloqueio/impedimento (ex: "Bloqueado", "Pausado"). Usado no Resumo de Planejamento Semanal para listar cards impedidos.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2">
+                {allStatuses.map((statusName) => (
+                  <label key={statusName} className="flex items-center gap-1.5 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={blockedColumns.includes(statusName)}
+                      onChange={() => toggleBlockedColumn(statusName)}
+                      className="w-3.5 h-3.5 rounded accent-orange-500"
                     />
                     <span className="text-sm text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white truncate">
                       {statusName}

@@ -10,6 +10,7 @@ import { ActivityLogButton, useActivityLog, DEFAULT_ACTIVITY_SETTINGS } from './
 import type { ActivityMonitorSettings } from './components/ActivityLogButton';
 import { ReleaseModal } from './components/ReleaseModal';
 import { DailyReportModal } from './components/DailyReportModal';
+import { WeeklyPlanningModal } from './components/WeeklyPlanningModal';
 import { DashboardModal } from './components/DashboardModal';
 import { ChangelogModal } from './components/ChangelogModal';
 import { CURRENT_VERSION, VERSION_STORAGE_KEY } from './version';
@@ -18,7 +19,7 @@ import { NotificationAlertModal, type AlertItem } from './components/Notificatio
 import { NotificationDetailModal } from './components/NotificationDetailModal';
 import { GitHubService } from './services/github';
 import type { ProjectColumn as ProjectColumnType, ViewTab, ProjectCard } from './types';
-import { RefreshCw, GitBranch, Settings as SettingsIcon, Filter, Package, FileText, SlidersHorizontal, Layers, Check, BarChart2, ExternalLink } from 'lucide-react';
+import { RefreshCw, GitBranch, Settings as SettingsIcon, Filter, Package, FileText, SlidersHorizontal, Layers, Check, BarChart2, ExternalLink, ClipboardList } from 'lucide-react';
 import { CardSearchBar } from './components/CardSearchBar';
 import { DEFAULT_VIEWS } from './utils/defaultViews';
 import { getPeopleForView } from './utils/viewPeopleMapping';
@@ -102,6 +103,7 @@ function App() {
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
   const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState(false);
+  const [isWeeklyPlanningModalOpen, setIsWeeklyPlanningModalOpen] = useState(false);
   const [mainView, setMainView] = useState<'board' | 'dashboard'>('board');
 
   // Estado para menu de opções do header
@@ -1013,6 +1015,14 @@ function App() {
                     </button>
 
                     <button
+                      onClick={() => { setIsWeeklyPlanningModalOpen(true); setIsMenuOpen(false); }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <ClipboardList size={14} className="text-gray-400 shrink-0" />
+                      <span>Planejamento Semanal</span>
+                    </button>
+
+                    <button
                       onClick={() => { setIsReleaseModalOpen(true); setIsMenuOpen(false); }}
                       className="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     >
@@ -1195,6 +1205,16 @@ function App() {
         onClose={() => setIsDailyReportModalOpen(false)}
         columns={columns}
         currentViewId={activeViewId}
+        token={token}
+        org={org}
+      />
+
+      {/* Weekly Planning Modal */}
+      <WeeklyPlanningModal
+        isOpen={isWeeklyPlanningModalOpen}
+        onClose={() => setIsWeeklyPlanningModalOpen(false)}
+        columns={filteredColumns}
+        currentViewName={activeView?.name}
         token={token}
         org={org}
       />
