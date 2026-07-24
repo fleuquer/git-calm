@@ -16,11 +16,16 @@ export interface VersionEntry {
 export const CHANGELOG: VersionEntry[] = [
   {
     version: '0.1.3',
-    date: '2026-07-14',
+    date: '2026-07-24',
     label: '',
     changes: [
       { type: 'improvement', description: 'Adição de accordion para exibir detalhes de cada versão' },
+      { type: 'improvement', description: 'Possibilidade de gerar relatório diário apenas para 1 usuário a definir no momento' },
       { type: 'feat', description: 'Ordenação visual de cards por coluna, com possibilidade de salvar preferências entre sessões' },
+      { type: 'feat', description: 'Nova configuração para mapeamento de colunas de retorno' },
+      { type: 'feat', description: 'Mapeado as colunas de retorno para exibir os cards retornados por usuário' },
+      { type: 'feat', description: 'Nova configuração para mapeamento de colunas de bloqueio/retorno' },
+      { type: 'feat', description: 'Nova seção de planejamento semanal, com intuito de facilitar a visão geral das atividades que precisam de tomadas de decisão' },
     ]
   },
   {
