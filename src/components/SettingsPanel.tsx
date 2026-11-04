@@ -159,7 +159,7 @@ export const SettingsPanel: React.FC<Props> = ({
 
     if (activeTab === 'mappings') {
       return (
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-hidden">
           <RepoMappingConfig
             isOpen={true}
             inline={true}
@@ -452,6 +452,7 @@ export const SettingsPanel: React.FC<Props> = ({
         'github-project-comment-templates': 'Templates de comentário',
         psi_release_link_repo: 'Repo dos links de release',
         github_column_sort_options: 'Ordenação visual de cards por coluna',
+        github_priority_config: 'Configuração de prioridade dos cards',
         github_save_ui_preferences: 'Salvar preferências entre sessões',
       };
 

@@ -31,6 +31,7 @@ import { applyFontSettings } from './utils/fontSettings';
 import { useRealtimeUpdates, type CardChange } from './hooks/useRealtimeUpdates';
 import { useGithubNotifications, type GithubNotification, DEFAULT_NOTIFICATION_SETTINGS } from './hooks/useGithubNotifications';
 import { DEFAULT_CARD_SORT, type CardSortOption } from './utils/cardSort';
+import { setProjectSingleSelectFields } from './utils/prioritySettings';
 import { getReworkColumns } from './utils/reworkColumns';
 import { recordReworkVisit } from './utils/reworkTracking';
 import {
@@ -523,6 +524,7 @@ function App() {
       }
 
       const data = await service.getProjectItems(org, projectNumber);
+      setProjectSingleSelectFields(data.singleSelectFields);
       setColumns(data.columns);
       setArchivedCards(data.archivedCards ?? []);
 

@@ -1,7 +1,8 @@
 import type { ProjectCard } from '../types';
+import { createPriorityResolver } from './prioritySettings';
 
 // Ordenação puramente visual: nunca altera os dados nem a posição real do card no GitHub.
-export type CardSortField = 'none' | 'updatedAt' | 'createdAt' | 'dueDate' | 'number' | 'title' | 'assignee' | 'labels';
+export type CardSortField = 'none' | 'updatedAt' | 'createdAt' | 'dueDate' | 'number' | 'title' | 'assignee' | 'labels' | 'priority';
 export type CardSortDirection = 'asc' | 'desc';
 
 export interface CardSortOption {
@@ -13,6 +14,7 @@ export const DEFAULT_CARD_SORT: CardSortOption = { field: 'none', direction: 'de
 
 export const CARD_SORT_FIELDS: { value: CardSortField; label: string; defaultDirection: CardSortDirection }[] = [
   { value: 'none', label: 'Sem ordenação (padrão)', defaultDirection: 'desc' },
+  { value: 'priority', label: 'Prioridade', defaultDirection: 'asc' },
   { value: 'updatedAt', label: 'Última movimentação', defaultDirection: 'desc' },
   { value: 'createdAt', label: 'Data de criação', defaultDirection: 'desc' },
   { value: 'dueDate', label: 'Prazo', defaultDirection: 'asc' },
@@ -31,6 +33,7 @@ function timeOrNull(value?: string): number | null {
 export function sortCards(cards: ProjectCard[], sort: CardSortOption): ProjectCard[] {
   if (!sort || sort.field === 'none') return cards;
   const dir = sort.direction === 'asc' ? 1 : -1;
+  const priorityOf = sort.field === 'priority' ? createPriorityResolver() : null;
 
   return [...cards].sort((a, b) => {
     switch (sort.field) {
@@ -45,6 +48,15 @@ export function sortCards(cards: ProjectCard[], sort: CardSortOption): ProjectCa
         if (aTime === null) return 1; // sem prazo sempre por último
         if (bTime === null) return -1;
         return dir * (aTime - bTime);
+      }
+      case 'priority': {
+        // asc = mais alta primeiro; sem prioridade sempre por último
+        const aRank = priorityOf!(a);
+        const bRank = priorityOf!(b);
+        if (aRank === null && bRank === null) return 0;
+        if (aRank === null) return 1;
+        if (bRank === null) return -1;
+        return dir * (aRank - bRank);
       }
       case 'number':
         return dir * (a.number - b.number);

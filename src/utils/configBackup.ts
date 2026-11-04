@@ -52,6 +52,7 @@ const CONFIG_KEYS = [
   'psi_release_link_repo',
   // Ordenação visual de cards por coluna
   'github_column_sort_options',
+  'github_priority_config',
   'github_save_ui_preferences',
   // Retrabalho
   'github_rework_columns',

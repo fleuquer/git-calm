@@ -21,6 +21,7 @@ export interface ProjectCard {
   createdAt: string;
   updatedAt: string;
   dueDate?: string;
+  fields?: Record<string, string>; // Campos de seleção única do Project (nome do campo → opção)
   url: string;
   lastEvent?: string;
   lastEventDetails?: string; // Detalhes adicionais como corpo do comentário
@@ -28,6 +29,11 @@ export interface ProjectCard {
   lastEventActorAvatar?: string; // Avatar do usuário que fez a ação
   lastEventLoading?: boolean;
   repo?: string;
+}
+
+export interface ProjectSingleSelectField {
+  name: string;
+  options: string[]; // Na ordem definida no Project
 }
 
 export interface ProjectColumn {

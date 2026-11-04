@@ -30,6 +30,7 @@ export const CHANGELOG: VersionEntry[] = [
       { type: 'improvement', description: 'Atualização das bibliotecas do sistema e correção de vulnerabilidades' },
       { type: 'feat', description: 'Seletor rápido de tema no cabeçalho, sem precisar abrir as configurações' },
       { type: 'feat', description: 'Novo layout em lista (menu de opções), com cards em linhas contínuas e colunas em painéis, combinável com a visão compacta' },
+      { type: 'feat', description: 'Ordenação dos cards por prioridade nas colunas, usando o campo "Priority" do Project ou labels de prioridade, configuráveis em Configurações › Mapeamentos › Prioridade' },
     ]
   },
   {

@@ -1,6 +1,7 @@
 import { Octokit } from '@octokit/rest';
 import { filterReposByRules } from '../utils/repoMapping';
 import { getReposForView } from '../utils/viewRepoMapping';
+import type { ProjectSingleSelectField } from '../types';
 
 // Em dev (localhost), redireciona chamadas para o proxy Vite para evitar CORS
 const isDev = typeof window !== 'undefined' && window.location.hostname === 'localhost';
@@ -23,6 +24,7 @@ export class GitHubService {
       let allItems: any[] = [];
       let hasNextPage = true;
       let endCursor: string | null = null;
+      let singleSelectFields: ProjectSingleSelectField[] = [];
 
       // Buscar todos os itens com paginação
       while (hasNextPage) {
@@ -32,6 +34,14 @@ export class GitHubService {
               projectV2(number: $number) {
                 id
                 title
+                fields(first: 50) {
+                  nodes {
+                    ... on ProjectV2SingleSelectField {
+                      name
+                      options { name }
+                    }
+                  }
+                }
                 items(first: 100, after: $cursor) {
                   pageInfo {
                     hasNextPage
@@ -128,6 +138,12 @@ export class GitHubService {
           cursor: endCursor,
         });
 
+        if (!endCursor) {
+          singleSelectFields = (response.organization.projectV2.fields?.nodes ?? [])
+            .filter((f: any) => f?.name && Array.isArray(f.options) && f.name !== 'Status')
+            .map((f: any) => ({ name: f.name, options: f.options.map((o: any) => o.name) }));
+        }
+
         const projectData = response.organization.projectV2.items;
         allItems = allItems.concat(projectData.nodes);
         hasNextPage = projectData.pageInfo.hasNextPage;
@@ -136,7 +152,10 @@ export class GitHubService {
         console.log(`Carregados ${allItems.length} itens... ${hasNextPage ? 'continuando' : 'concluído'}`);
       }
 
-      return this.parseProjectData({ organization: { projectV2: { items: { nodes: allItems } } } });
+      return {
+        ...this.parseProjectData({ organization: { projectV2: { items: { nodes: allItems } } } }),
+        singleSelectFields,
+      };
     } catch (error) {
       console.error('Erro ao buscar projeto:', error);
       throw error;
@@ -165,6 +184,15 @@ export class GitHubService {
           )
         );
 
+        // Valores dos campos de seleção única do Project (ex: "Priority"), exceto Status
+        const fields: Record<string, string> = {};
+        for (const fv of item.fieldValues.nodes) {
+          const fieldName = fv?.field?.name;
+          if (fieldName && fieldName !== 'Status' && typeof fv.name === 'string') {
+            fields[fieldName] = fv.name;
+          }
+        }
+
         return {
           id: item.id,
           number: content.number,
@@ -182,6 +210,7 @@ export class GitHubService {
           createdAt: content.createdAt,
           updatedAt: content.updatedAt,
           dueDate: dueDateField?.date,
+          fields,
           url: content.url,
           issueState: content.state,
           totalComments: content.comments?.totalCount,

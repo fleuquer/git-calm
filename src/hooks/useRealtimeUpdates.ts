@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { setProjectSingleSelectFields } from '../utils/prioritySettings';
 import type { ProjectColumn, ProjectCard } from '../types';
 
 export interface CardChange {
@@ -171,6 +172,7 @@ export function useRealtimeUpdates({
       const data = await service.getProjectItems(org, projectNumber);
 
       // Detectar mudanças
+      setProjectSingleSelectFields(data.singleSelectFields);
       const changes = detectChanges(previousColumnsRef.current, data.columns);
 
       if (changes.length > 0) {

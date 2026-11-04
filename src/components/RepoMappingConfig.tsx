@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Save, Tag, FolderGit2, RefreshCw, Layers, Edit2, Users, EyeOff, Eye, History, Ban } from 'lucide-react';
+import { X, Plus, Trash2, Save, Tag, FolderGit2, RefreshCw, Layers, Edit2, Users, EyeOff, Eye, History, Ban, Flag } from 'lucide-react';
 import { getReworkColumns, setReworkColumns } from '../utils/reworkColumns';
 import { getBlockedColumns, setBlockedColumns } from '../utils/blockedColumns';
+import { PriorityConfigSection } from './PriorityConfigSection';
 import {
   loadUserRepoMapping,
   saveUserRepoMapping,
@@ -27,6 +28,27 @@ import {
 import { Octokit } from '@octokit/rest';
 import type { ViewTab } from '../types';
 
+type MappingTab = 'tags' | 'views' | 'people' | 'viewtags' | 'hiddenlabels' | 'rework' | 'blocked' | 'priority';
+
+const MAPPING_NAV: { title: string; items: { id: MappingTab; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] }[] = [
+  { title: 'Repositórios', items: [
+    { id: 'tags', label: 'Tags → Repos', icon: Tag },
+    { id: 'views', label: 'Guias → Repos', icon: Layers },
+  ]},
+  { title: 'Guias', items: [
+    { id: 'people', label: 'Guias → Pessoas', icon: Users },
+    { id: 'viewtags', label: 'Grupos de Tags', icon: Tag },
+    { id: 'hiddenlabels', label: 'Labels Ocultas', icon: EyeOff },
+  ]},
+  { title: 'Colunas', items: [
+    { id: 'rework', label: 'Retrabalho', icon: History },
+    { id: 'blocked', label: 'Bloqueios', icon: Ban },
+  ]},
+  { title: 'Cards', items: [
+    { id: 'priority', label: 'Prioridade', icon: Flag },
+  ]},
+];
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -49,7 +71,7 @@ export const RepoMappingConfig: React.FC<Props> = ({
   inline = false
 }) => {
   // Aba ativa
-  const [activeTab, setActiveTab] = useState<'tags' | 'views' | 'people' | 'viewtags' | 'hiddenlabels' | 'rework' | 'blocked'>('tags');
+  const [activeTab, setActiveTab] = useState<MappingTab>('tags');
 
   // Estados para Colunas de Retrabalho
   const [reworkColumns, setReworkColumnsState] = useState<string[]>(getReworkColumns);
@@ -466,90 +488,36 @@ export const RepoMappingConfig: React.FC<Props> = ({
   // Se inline, renderiza conteúdo diretamente sem modal
   if (inline) {
     return (
-      <div className="flex flex-col h-full">
-        {/* Tabs Navigation */}
-        <div className="flex border-b border-gray-200 dark:border-gray-700 shrink-0">
-          <button
-            onClick={() => setActiveTab('tags')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'tags'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-            }`}
-          >
-            <Tag size={16} />
-            Tags → Repos
-          </button>
-          <button
-            onClick={() => setActiveTab('views')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'views'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-            }`}
-          >
-            <Layers size={16} />
-            Guias → Repos
-          </button>
-          <button
-            onClick={() => setActiveTab('people')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'people'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-            }`}
-          >
-            <Users size={16} />
-            Guias → Pessoas
-          </button>
-          <button
-            onClick={() => setActiveTab('viewtags')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'viewtags'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-            }`}
-          >
-            <Tag size={16} />
-            Grupos de Tags
-          </button>
-          <button
-            onClick={() => setActiveTab('hiddenlabels')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'hiddenlabels'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-            }`}
-          >
-            <EyeOff size={16} />
-            Labels Ocultas
-          </button>
-          <button
-            onClick={() => setActiveTab('rework')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'rework'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-            }`}
-          >
-            <History size={16} />
-            Retrabalho
-          </button>
-          <button
-            onClick={() => setActiveTab('blocked')}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'blocked'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-            }`}
-          >
-            <Ban size={16} />
-            Bloqueios
-          </button>
-        </div>
+      <div className="flex h-full min-h-0">
+        {/* Navegação lateral (agrupada, cresce na vertical) */}
+        <nav className="w-52 shrink-0 border-r border-gray-200 dark:border-gray-700 overflow-y-auto py-3 px-2 space-y-4">
+          {MAPPING_NAV.map(group => (
+            <div key={group.title}>
+              <div className="px-2 mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                {group.title}
+              </div>
+              <div className="space-y-0.5">
+                {group.items.map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => setActiveTab(id)}
+                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-left whitespace-nowrap transition-colors ${
+                      activeTab === id
+                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium'
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/60 hover:text-gray-900 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    <Icon size={15} className="shrink-0" />
+                    <span className="truncate">{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </nav>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 min-w-0 overflow-y-auto p-6">
           {/* Tab: Tags */}
           {activeTab === 'tags' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1390,6 +1358,9 @@ export const RepoMappingConfig: React.FC<Props> = ({
               </div>
             </div>
           )}
+
+          {/* Tab: Prioridade */}
+          {activeTab === 'priority' && <PriorityConfigSection availableLabels={availableTags} />}
 
         </div>
       </div>
