@@ -32,6 +32,7 @@ import { useRealtimeUpdates, type CardChange } from './hooks/useRealtimeUpdates'
 import { useGithubNotifications, type GithubNotification, DEFAULT_NOTIFICATION_SETTINGS } from './hooks/useGithubNotifications';
 import { DEFAULT_CARD_SORT, type CardSortOption } from './utils/cardSort';
 import { setProjectSingleSelectFields } from './utils/prioritySettings';
+import type { IssueLinkRef } from './utils/issueLinks';
 import { getReworkColumns } from './utils/reworkColumns';
 import { recordReworkVisit } from './utils/reworkTracking';
 import {
@@ -84,6 +85,9 @@ function App() {
   // Estado para modal de detalhes do card
   const [selectedCard, setSelectedCard] = useState<ProjectCard | null>(null);
   const [isCardModalOpen, setIsCardModalOpen] = useState(false);
+  // Trilha de navegação entre cards por links (card 1 → link → card 2...): permite voltar
+  const [cardTrail, setCardTrail] = useState<ProjectCard[]>([]);
+  const [openingIssueLink, setOpeningIssueLink] = useState<IssueLinkRef | null>(null);
 
   // Cache do campo de status (lazy-fetched na primeira movimentação)
   const [statusFieldInfo, setStatusFieldInfo] = useState<{
@@ -240,6 +244,7 @@ function App() {
       ];
       const found = allCards.find(c => Number(c.number) === Number(notification.issueNumber));
       if (found) {
+        setCardTrail([]);
         setSelectedCard(found);
         setIsCardModalOpen(true);
         return;
@@ -269,6 +274,7 @@ function App() {
             issueState: (data.state as string)?.toUpperCase(),
             repo: notification.repo,
           };
+          setCardTrail([]);
           setSelectedCard(card);
           setIsCardModalOpen(true);
           return;
@@ -724,8 +730,63 @@ function App() {
 
   // Handler para abrir modal do card
   const handleCardClick = (card: ProjectCard) => {
+    setCardTrail([]);
     setSelectedCard(card);
     setIsCardModalOpen(true);
+  };
+
+  // Abre um card a partir de um link dentro de outro: o card atual entra na trilha
+  const openLinkedCard = (card: ProjectCard) => {
+    if (selectedCard) setCardTrail(prev => [...prev, selectedCard]);
+    setSelectedCard(card);
+    setIsCardModalOpen(true);
+  };
+
+  // Volta para um card da trilha (índice), descartando os que vieram depois dele.
+  // Usa a versão mais recente do card no board, se ele ainda estiver carregado.
+  const handleNavigateTrail = (index: number) => {
+    const target = cardTrail[index];
+    if (!target) return;
+    const fresh = [...columns.flatMap(col => col.cards), ...archivedCards].find(c => c.id === target.id);
+    setCardTrail(prev => prev.slice(0, index));
+    setSelectedCard(fresh ?? target);
+  };
+
+  // Link para outra issue dentro de um card (issue #5): abre o card no app em vez de ir ao GitHub.
+  // Procura no board (e nos arquivados); se não estiver lá, busca a issue na API; se nada der
+  // certo (ex: PR fora do board, sem acesso), abre o link no GitHub como antes.
+  const handleOpenIssueLink = async (ref: IssueLinkRef) => {
+    const sameIssue = (c: ProjectCard) =>
+      c.number === ref.number && (c.repo ?? '').toLowerCase() === ref.repo.toLowerCase();
+
+    if (selectedCard && sameIssue(selectedCard)) return; // link para o próprio card
+
+    // Se o card já está na trilha, volta até ele em vez de empilhar de novo (evita ciclos 1 → 2 → 1 → 2)
+    const trailIndex = cardTrail.findIndex(sameIssue);
+    if (trailIndex >= 0) {
+      handleNavigateTrail(trailIndex);
+      return;
+    }
+
+    const known = [...columns.flatMap(col => col.cards), ...archivedCards].find(sameIssue);
+    if (known) {
+      openLinkedCard(known);
+      return;
+    }
+
+    if (ref.kind === 'issue') {
+      setOpeningIssueLink(ref);
+      try {
+        const fetched = await new GitHubService(token).getIssueAsCard(org, ref.repo, ref.number);
+        if (fetched) {
+          openLinkedCard(fetched);
+          return;
+        }
+      } finally {
+        setOpeningIssueLink(null);
+      }
+    }
+    window.open(ref.url, '_blank', 'noopener,noreferrer');
   };
 
   // Mover card para outra coluna (atualiza status no GitHub Projects)
@@ -1179,6 +1240,7 @@ function App() {
         onClose={() => {
           setIsCardModalOpen(false);
           setSelectedCard(null);
+          setCardTrail([]);
         }}
         token={token}
         org={org}
@@ -1186,6 +1248,10 @@ function App() {
         currentViewId={activeViewId}
         columns={columns}
         onMoveCard={handleMoveCard}
+        onOpenIssueLink={handleOpenIssueLink}
+        trail={cardTrail}
+        onNavigateTrail={handleNavigateTrail}
+        openingIssueLink={openingIssueLink}
       />
 
       {/* Daily Report Modal */}

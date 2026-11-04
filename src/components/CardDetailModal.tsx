@@ -5,6 +5,8 @@ import type { CommentTemplate } from '../types/commentTemplates';
 import { GitHubService } from '../services/github';
 import { CommentTemplateService } from '../services/commentTemplateService';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import type { IssueLinkRef } from '../utils/issueLinks';
+import { CardTrail } from './CardTrail';
 import { convertGithubEmojis } from '../utils/emojiConverter';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -20,6 +22,12 @@ interface Props {
   currentViewId?: string;
   columns?: ProjectColumn[];
   onMoveCard?: (cardId: string, targetStatus: string) => Promise<void>;
+  // Clique em link para outra issue da org (ex: "#123" na descrição/comentário): abre no app
+  onOpenIssueLink?: (ref: IssueLinkRef) => void;
+  // Navegação entre cards abertos por links
+  trail?: ProjectCard[];
+  onNavigateTrail?: (index: number) => void;
+  openingIssueLink?: IssueLinkRef | null;
 }
 
 interface IssueDetail {
@@ -84,7 +92,7 @@ interface MilestoneInfo {
   url: string;
 }
 
-export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token, org, onUpdate, currentViewId, columns, onMoveCard }) => {
+export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token, org, onUpdate, currentViewId, columns, onMoveCard, onOpenIssueLink, trail = [], onNavigateTrail, openingIssueLink }) => {
   const [details, setDetails] = useState<IssueDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'description' | 'timeline'>('description');
@@ -567,6 +575,11 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
         className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-[85vw] h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Trilha de navegação entre cards (quando aberto a partir de link em outro card) */}
+        {onNavigateTrail && (
+          <CardTrail trail={trail} current={card} onNavigate={onNavigateTrail} opening={openingIssueLink} />
+        )}
+
         {/* Header Compacto */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -684,6 +697,8 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                         {details?.body ? (
                           <MarkdownRenderer
                             html={details.body}
+                            org={org}
+                            onIssueLinkClick={onOpenIssueLink}
                             compact
                             className="text-sm text-gray-700 dark:text-gray-300"
                           />
@@ -1365,7 +1380,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                                     </div>
                                     {isExpanded && (
                                       <div className="px-4 py-3" style={{ background: 'var(--color-comment-body)' }}>
-                                        <MarkdownRenderer html={item.body} className="text-sm text-gray-700 dark:text-gray-300" />
+                                        <MarkdownRenderer html={item.body} org={org} onIssueLinkClick={onOpenIssueLink} className="text-sm text-gray-700 dark:text-gray-300" />
                                       </div>
                                     )}
                                   </div>
@@ -1694,7 +1709,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                   </div>
 
                   {/* Mover para coluna */}
-                  {columns && columns.length > 0 && onMoveCard && (
+                  {columns && columns.length > 0 && onMoveCard && columns.some(col => col.cards.some(c => c.id === card.id)) && (
                     <div ref={moveDropdownRef}>
                       <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Coluna</h4>
                       <div className="relative">

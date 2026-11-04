@@ -292,6 +292,32 @@ export class GitHubService {
     }
   }
 
+  /** Busca uma issue pelo repositório e número (para abrir no app cards que não estão no board). */
+  async getIssueAsCard(org: string, repo: string, issueNumber: number): Promise<import('../types').ProjectCard | null> {
+    try {
+      const { data } = await this.octokit.issues.get({ owner: org, repo, issue_number: issueNumber });
+      if ((data as any).pull_request) return null; // PRs não abrem no modal de card
+      return {
+        id: String(data.node_id ?? data.id),
+        number: data.number,
+        title: data.title,
+        body: data.body ?? '',
+        status: 'Fora do board',
+        assignees: (data.assignees ?? []).map((a: any) => ({ login: a.login, avatarUrl: a.avatar_url })),
+        labels: (data.labels ?? []).map((l: any) => (typeof l === 'string' ? { name: l, color: 'ededed' } : { name: l.name ?? '', color: l.color ?? 'ededed' })),
+        issueState: data.state?.toUpperCase(),
+        totalComments: data.comments,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+        url: data.html_url,
+        repo,
+      };
+    } catch (err) {
+      console.error('Erro ao buscar issue:', err);
+      return null;
+    }
+  }
+
   async getIssueComments(org: string, repo: string, issueNumber: number, count = 10) {
     try {
       const { data } = await this.octokit.issues.listComments({

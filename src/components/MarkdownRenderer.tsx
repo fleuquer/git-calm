@@ -1,9 +1,13 @@
 import React from 'react';
+import { parseIssueLink, isPlainLeftClick, type IssueLinkRef } from '../utils/issueLinks';
 
 interface Props {
   html: string;
   className?: string;
   compact?: boolean;
+  // Links para issues da organização: quando informado, o clique abre o card no app
+  org?: string;
+  onIssueLinkClick?: (ref: IssueLinkRef) => void;
 }
 
 function cleanHtml(html: string): string {
@@ -246,11 +250,23 @@ function cleanHtml(html: string): string {
   return result;
 }
 
-export const MarkdownRenderer: React.FC<Props> = ({ html, className = '', compact = false }) => {
+export const MarkdownRenderer: React.FC<Props> = ({ html, className = '', compact = false, org, onIssueLinkClick }) => {
   const content = compact ? cleanHtml(html) : html;
+
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!onIssueLinkClick || !org || !isPlainLeftClick(e)) return;
+    const anchor = (e.target as HTMLElement).closest('a[href]') as HTMLAnchorElement | null;
+    if (!anchor) return;
+    const ref = parseIssueLink(anchor.href, org);
+    if (!ref) return;
+    e.preventDefault();
+    onIssueLinkClick(ref);
+  };
+
   return (
     <div
       className={`markdown-body ${className}`}
+      onClick={handleClick}
       dangerouslySetInnerHTML={{ __html: content }}
     />
   );
