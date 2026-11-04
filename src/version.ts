@@ -32,6 +32,7 @@ export const CHANGELOG: VersionEntry[] = [
       { type: 'feat', description: 'Novo layout em lista (menu de opções), com cards em linhas contínuas e colunas em painéis, combinável com a visão compacta' },
       { type: 'feat', description: 'Ordenação dos cards por prioridade nas colunas, usando o campo "Priority" do Project ou labels de prioridade, configuráveis em Configurações › Mapeamentos › Prioridade' },
       { type: 'fix', description: 'Gráfico "Cards por status" do Dashboard em barras ordenadas, com quantidade e percentual, legível mesmo com muitos status (#9)' },
+      { type: 'fix', description: 'Edição de mapeamentos Guia → Repos agora carrega a guia e os repositórios salvos ao clicar em "Editar", sem precisar selecionar de novo (#3)' },
     ]
   },
   {

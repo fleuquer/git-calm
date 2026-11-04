@@ -439,8 +439,17 @@ export const RepoMappingConfig: React.FC<Props> = ({
     localStorage.setItem('view_hidden_labels', JSON.stringify(updated));
   };
 
-  const handleEditViewMapping = (_viewId: string, repos: string[]) => {
+  // Editar: seleciona a guia e carrega os repositórios já salvos (issue #3 — antes só carregava
+  // os repos sem selecionar a guia, e o formulário só aparece com uma guia selecionada)
+  const handleEditViewMapping = (viewId: string, repos: string[]) => {
+    setSelectedView(viewId);
     setSelectedViewRepos(repos);
+  };
+
+  // Trocar a guia no select carrega o mapeamento existente dela (ou começa vazio)
+  const handleSelectView = (viewId: string) => {
+    setSelectedView(viewId);
+    setSelectedViewRepos(viewMappings.find(m => m.viewId === viewId)?.repos ?? []);
   };
 
   const toggleViewRepo = (repo: string) => {
@@ -459,9 +468,13 @@ export const RepoMappingConfig: React.FC<Props> = ({
     tag.toLowerCase().includes(searchTag.toLowerCase())
   );
 
-  const filteredViewRepos = availableRepos.filter(repo =>
-    repo.toLowerCase().includes(searchViewRepo.toLowerCase())
-  );
+  // Repos já salvos no mapeamento da guia aparecem primeiro (ordem fixa durante a edição,
+  // para a lista não "pular" ao marcar/desmarcar)
+  const savedViewMapping = viewMappings.find(m => m.viewId === selectedView);
+  const savedViewRepos = new Set(savedViewMapping?.repos ?? []);
+  const filteredViewRepos = availableRepos
+    .filter(repo => repo.toLowerCase().includes(searchViewRepo.toLowerCase()))
+    .sort((a, b) => Number(savedViewRepos.has(b)) - Number(savedViewRepos.has(a)));
 
   const filteredViewTags = availableTags.filter(tag =>
     tag.toLowerCase().includes(searchViewTag.toLowerCase())
@@ -713,7 +726,7 @@ export const RepoMappingConfig: React.FC<Props> = ({
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                     <Plus size={20} />
-                    {selectedView ? 'Editar Mapeamento' : 'Novo Mapeamento'}
+                    {savedViewMapping ? 'Editar Mapeamento' : 'Novo Mapeamento'}
                   </h3>
 
                   {/* Selecionar Guia */}
@@ -723,7 +736,7 @@ export const RepoMappingConfig: React.FC<Props> = ({
                     </label>
                     <select
                       value={selectedView}
-                      onChange={(e) => setSelectedView(e.target.value)}
+                      onChange={(e) => handleSelectView(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     >
                       <option value="">Selecione uma guia...</option>
@@ -1650,7 +1663,7 @@ export const RepoMappingConfig: React.FC<Props> = ({
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                     <Plus size={20} />
-                    {selectedView ? 'Editar Mapeamento' : 'Novo Mapeamento'}
+                    {savedViewMapping ? 'Editar Mapeamento' : 'Novo Mapeamento'}
                   </h3>
 
                   {/* Selecionar Guia */}
@@ -1660,7 +1673,7 @@ export const RepoMappingConfig: React.FC<Props> = ({
                     </label>
                     <select
                       value={selectedView}
-                      onChange={(e) => setSelectedView(e.target.value)}
+                      onChange={(e) => handleSelectView(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     >
                       <option value="">Selecione uma guia...</option>
