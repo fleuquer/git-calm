@@ -8,6 +8,7 @@ import { FilterPanel } from './components/FilterPanel';
 import { ActivityNotifications } from './components/ActivityNotifications';
 import { ActivityLogButton, useActivityLog, DEFAULT_ACTIVITY_SETTINGS } from './components/ActivityLogButton';
 import type { ActivityMonitorSettings } from './components/ActivityLogButton';
+import { ThemeSwitcher } from './components/ThemeSwitcher';
 import { ReleaseModal } from './components/ReleaseModal';
 import { DailyReportModal } from './components/DailyReportModal';
 import { WeeklyPlanningModal } from './components/WeeklyPlanningModal';
@@ -19,13 +20,13 @@ import { NotificationAlertModal, type AlertItem } from './components/Notificatio
 import { NotificationDetailModal } from './components/NotificationDetailModal';
 import { GitHubService } from './services/github';
 import type { ProjectColumn as ProjectColumnType, ViewTab, ProjectCard } from './types';
-import { RefreshCw, GitBranch, Settings as SettingsIcon, Filter, Package, FileText, SlidersHorizontal, Layers, Check, BarChart2, ExternalLink, ClipboardList } from 'lucide-react';
+import { RefreshCw, GitBranch, Settings as SettingsIcon, Filter, Package, FileText, SlidersHorizontal, Layers, Check, BarChart2, ExternalLink, ClipboardList, Rows3 } from 'lucide-react';
 import { CardSearchBar } from './components/CardSearchBar';
 import { DEFAULT_VIEWS } from './utils/defaultViews';
 import { getPeopleForView } from './utils/viewPeopleMapping';
 import { getTagsForView, getTagGroupsForView } from './utils/viewTagsMapping';
 import { filterColumns, getTotalCards } from './utils/filterUtils';
-import { getTheme, applyThemeColors } from './themes';
+import { getTheme, applyTheme, resolveThemeId } from './themes';
 import { applyFontSettings } from './utils/fontSettings';
 import { useRealtimeUpdates, type CardChange } from './hooks/useRealtimeUpdates';
 import { useGithubNotifications, type GithubNotification, DEFAULT_NOTIFICATION_SETTINGS } from './hooks/useGithubNotifications';
@@ -42,17 +43,9 @@ import {
 function App() {
   // Inicializar tema do localStorage ANTES de qualquer renderização
   const [selectedTheme, setSelectedTheme] = useState<string>(() => {
-    const savedTheme = localStorage.getItem('github_theme');
-    const themeId = savedTheme || 'light';
-
-    // Aplicar classe dark/light e CSS variables no document ao inicializar
-    const theme = getTheme(themeId);
-    const root = document.documentElement;
-    root.classList.remove('light', 'dark');
-    root.classList.add(theme.isDark ? 'dark' : 'light');
-
-    // Aplicar cores customizadas do tema
-    applyThemeColors(theme);
+    // Temas antigos (removidos) são migrados para o equivalente atual
+    const themeId = resolveThemeId(localStorage.getItem('github_theme'));
+    applyTheme(getTheme(themeId));
 
     // Aplicar configurações de tipografia
     applyFontSettings();
@@ -122,6 +115,12 @@ function App() {
   // Estado para visão compacta dos cards
   const [compactCardView, setCompactCardView] = useState<boolean>(() => {
     const saved = localStorage.getItem('github_compact_card_view');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  // Layout em lista: cards colados, sem arredondamento (alternativa aos cartões)
+  const [listLayout, setListLayout] = useState<boolean>(() => {
+    const saved = localStorage.getItem('github_list_layout');
     return saved ? JSON.parse(saved) : false;
   });
 
@@ -337,26 +336,6 @@ function App() {
     }
   }, []);
 
-  // Apply theme on mount and when it changes
-  useEffect(() => {
-    const currentTheme = getTheme(selectedTheme);
-    const root = document.documentElement;
-
-    // Apply dark class based on theme
-    if (currentTheme.isDark) {
-      root.classList.remove('light');
-      root.classList.add('dark');
-      root.style.colorScheme = 'dark';
-    } else {
-      root.classList.remove('dark');
-      root.classList.add('light');
-      // Force light mode by removing system preference
-      root.style.colorScheme = 'light';
-    }
-
-    // Apply custom theme attribute for specific themes
-    root.setAttribute('data-theme', selectedTheme);
-  }, [selectedTheme]);
 
   // Fechar menu ao clicar fora
   useEffect(() => {
@@ -678,15 +657,7 @@ function App() {
   const handleThemeChange = (themeId: string) => {
     setSelectedTheme(themeId);
     localStorage.setItem('github_theme', themeId);
-
-    // Aplicar classe dark/light e cores customizadas no document
-    const theme = getTheme(themeId);
-    const root = document.documentElement;
-    root.classList.remove('light', 'dark');
-    root.classList.add(theme.isDark ? 'dark' : 'light');
-
-    // Aplicar cores customizadas do tema
-    applyThemeColors(theme);
+    applyTheme(getTheme(themeId));
   };
 
   const handleSaveViews = (newViews: ViewTab[]) => {
@@ -909,6 +880,8 @@ function App() {
                 onClearAll={clearActivityLog}
               />
 
+              <ThemeSwitcher selectedTheme={selectedTheme} onThemeChange={handleThemeChange} />
+
               {/* Menu de opções */}
               <div ref={menuRef} className="relative">
                 <button
@@ -961,6 +934,19 @@ function App() {
                       <Layers size={14} className="text-gray-400 shrink-0" />
                       <span>Visão compacta</span>
                       {compactCardView && <Check size={12} className="ml-auto text-blue-500" />}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        const newValue = !listLayout;
+                        setListLayout(newValue);
+                        localStorage.setItem('github_list_layout', JSON.stringify(newValue));
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <Rows3 size={14} className="text-gray-400 shrink-0" />
+                      <span>Layout em lista</span>
+                      {listLayout && <Check size={12} className="ml-auto text-blue-500" />}
                     </button>
 
                     <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
@@ -1051,7 +1037,7 @@ function App() {
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* View Tabs — só no Board */}
         {mainView === 'board' && (
-          <div className="shrink-0 px-4 pt-3">
+          <div className="shrink-0">
             <ViewTabs
               views={views}
               activeViewId={activeViewId}
@@ -1076,8 +1062,8 @@ function App() {
         ) : mainView === 'dashboard' ? (
           <DashboardModal columns={columns} views={views} />
         ) : (
-          <div className="flex-1 overflow-auto px-4 pt-3">
-            <div className="flex gap-0 h-full">
+          <div className="flex-1 overflow-auto">
+            <div className={`flex h-full ${listLayout ? 'gap-2 p-2' : 'gap-0'}`}>
               {filteredColumns.map((column) => (
                 <ProjectColumn
                   key={column.id}
@@ -1098,6 +1084,7 @@ function App() {
                   isCollapsed={collapsedColumns.has(column.id)}
                   onToggleCollapse={() => handleToggleColumnCollapse(column.id)}
                   compactCardView={compactCardView}
+                  listLayout={listLayout}
                   onDropCard={handleMoveCard}
                   sortOption={columnSortOptions[column.id] ?? DEFAULT_CARD_SORT}
                   onSortChange={(option) => handleColumnSortChange(column.id, option)}

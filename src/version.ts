@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '0.1.3';
+export const CURRENT_VERSION = '0.1.4';
 export const VERSION_STORAGE_KEY = 'app_last_seen_version';
 
 export interface Change {
@@ -14,6 +14,24 @@ export interface VersionEntry {
 }
 
 export const CHANGELOG: VersionEntry[] = [
+  {
+    version: '0.1.4',
+    date: '2026-11-04',
+    label: '',
+    changes: [
+      { type: 'improvement', description: 'Temas visuais reformulados: Claro, Claro quente, Escuro suave, Escuro, Escuro quente e Violeta, com mais contraste entre fundo, colunas, cards e textos. Temas antigos são migrados automaticamente para o equivalente' },
+      { type: 'improvement', description: 'Tema claro mais confortável, com superfícies em tom suave em vez de branco puro e labels legíveis em qualquer cor' },
+      { type: 'improvement', description: 'Fonte Inter como padrão, carregada junto com o app (não depende mais de serviço externo)' },
+      { type: 'improvement', description: 'Novo visual dos cards: tarja de tipo mais discreta e rodapé simplificado, com última atividade e responsáveis na mesma linha' },
+      { type: 'improvement', description: 'Cores dos tipos de card (Erro, Problema, Adequação e Melhoria) mais fáceis de diferenciar' },
+      { type: 'improvement', description: 'Cards sem responsável agora são destacados com borda tracejada, em vez da animação piscante' },
+      { type: 'improvement', description: 'Títulos escritos em CAIXA ALTA são exibidos como frase normal nos cards, preservando siglas (o título original aparece ao passar o mouse)' },
+      { type: 'improvement', description: 'Avatares maiores e sem cortes, inclusive na visão compacta' },
+      { type: 'improvement', description: 'Atualização das bibliotecas do sistema e correção de vulnerabilidades' },
+      { type: 'feat', description: 'Seletor rápido de tema no cabeçalho, sem precisar abrir as configurações' },
+      { type: 'feat', description: 'Novo layout em lista (menu de opções), com cards em linhas contínuas e colunas em painéis, combinável com a visão compacta' },
+    ]
+  },
   {
     version: '0.1.3',
     date: '2026-07-24',

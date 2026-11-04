@@ -21,7 +21,7 @@ const colorClasses = {
 export function ViewTabs({ views, activeViewId, onViewChange, onManageViews }: ViewTabsProps) {
   return (
     <div className="flex items-center gap-2 overflow-x-auto border-b border-gray-200 dark:border-gray-700">
-      <div className="flex gap-1.5 flex-1 min-w-0">
+      <div className="flex flex-1 min-w-0">
         {views.map((view) => {
           const isActive = view.id === activeViewId;
           const colorClass = colorClasses[view.color as keyof typeof colorClasses] || colorClasses.gray;
@@ -31,7 +31,7 @@ export function ViewTabs({ views, activeViewId, onViewChange, onManageViews }: V
               key={view.id}
               onClick={() => onViewChange(view.id)}
               className={`
-                flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium text-xs whitespace-nowrap
+                flex items-center gap-1.5 px-3 py-1.5 font-medium text-xs whitespace-nowrap
                 transition-all duration-200
                 ${isActive
                   ? colorClass

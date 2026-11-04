@@ -15,8 +15,8 @@ export type FontSizeId = typeof FONT_SIZES[number]['id'];
 
 export const FONT_FAMILIES = [
   { id: 'system', label: 'Sistema',    value: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
-  { id: 'inter',  label: 'Inter',      value: "'Inter', system-ui, sans-serif" },
-  { id: 'mono',   label: 'Monospace',  value: "'Consolas', 'Menlo', 'Courier New', monospace" },
+  { id: 'inter',  label: 'Inter (padrão)', value: "'Inter Variable', 'Inter', system-ui, sans-serif" },
+  { id: 'mono',   label: 'Monospace',  value: "'JetBrains Mono Variable', 'Consolas', 'Menlo', 'Courier New', monospace" },
 ] as const;
 
 export type FontFamilyId = typeof FONT_FAMILIES[number]['id'];
@@ -26,10 +26,10 @@ const LS_FAMILY = 'github_font_family';
 
 export function applyFontSettings(): void {
   const sizeId   = (localStorage.getItem(LS_SIZE)   || 'md') as FontSizeId;
-  const familyId = (localStorage.getItem(LS_FAMILY) || 'system') as FontFamilyId;
+  const familyId = (localStorage.getItem(LS_FAMILY) || 'inter') as FontFamilyId;
 
   const sizeEntry   = FONT_SIZES.find(s => s.id === sizeId)     ?? FONT_SIZES[2];
-  const familyEntry = FONT_FAMILIES.find(f => f.id === familyId) ?? FONT_FAMILIES[0];
+  const familyEntry = FONT_FAMILIES.find(f => f.id === familyId) ?? FONT_FAMILIES[1];
 
   document.documentElement.style.fontSize   = sizeEntry.value;
   document.documentElement.style.fontFamily = familyEntry.value;
@@ -46,4 +46,4 @@ export function saveFontFamily(id: FontFamilyId): void {
 }
 
 export function getFontSize():   FontSizeId   { return (localStorage.getItem(LS_SIZE)   || 'md')     as FontSizeId; }
-export function getFontFamily(): FontFamilyId { return (localStorage.getItem(LS_FAMILY) || 'system') as FontFamilyId; }
+export function getFontFamily(): FontFamilyId { return (localStorage.getItem(LS_FAMILY) || 'inter') as FontFamilyId; }

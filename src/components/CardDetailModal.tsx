@@ -8,6 +8,7 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { convertGithubEmojis } from '../utils/emojiConverter';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { getLabelStyle } from '../utils/labelColors';
 
 interface Props {
   card: ProjectCard | null;
@@ -1385,7 +1386,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                                   <div className="flex-1 py-0.5">
                                     <div className="flex items-start justify-between gap-2">
                                     <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-                                      <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{item.actor}</span>
+                                      <span className="text-sm font-normal text-gray-900 dark:text-gray-100">{item.actor}</span>
                                       <span className="text-sm text-gray-600 dark:text-gray-400">{verb}</span>
                                       {isLabel && item.items.map(i => {
                                         const label = i.metadata?.label;
@@ -1628,18 +1629,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                           <div key={label.name} className="group relative">
                             <span
                               className="text-xs px-2 py-0.5 rounded font-medium inline-flex items-center gap-1"
-                              style={{
-                                backgroundColor: document.documentElement.classList.contains('dark')
-                                  ? `#${label.color}20`
-                                  : `#${label.color}`,
-                                color: document.documentElement.classList.contains('dark')
-                                  ? `#${label.color}`
-                                  : '#ffffff',
-                                borderColor: document.documentElement.classList.contains('dark')
-                                  ? `#${label.color}40`
-                                  : 'transparent',
-                                borderWidth: '1px',
-                              }}
+                              style={getLabelStyle(label.color)}
                             >
                               {convertGithubEmojis(label.name)}
                               <button
@@ -1932,7 +1922,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                         className="block p-3 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 hover:border-blue-500 transition-colors"
                       >
                         <div className="flex items-center gap-2 mb-2">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          <p className="text-sm font-normal text-gray-900 dark:text-gray-100">
                             {milestone.title}
                           </p>
                           <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${

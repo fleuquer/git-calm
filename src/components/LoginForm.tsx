@@ -249,7 +249,7 @@ export const LoginForm: React.FC<Props> = ({ onLogin }) => {
           <h1 className="mb-3 leading-none">
             <span style={{
               display: 'inline-block',
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "'JetBrains Mono Variable', 'JetBrains Mono', monospace",
               fontSize: '3rem',
               fontWeight: 700,
               letterSpacing: '-0.03em',
@@ -263,7 +263,7 @@ export const LoginForm: React.FC<Props> = ({ onLogin }) => {
             </span>
             <span style={{
               display: 'inline-block',
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "'JetBrains Mono Variable', 'JetBrains Mono', monospace",
               fontSize: '3rem',
               fontWeight: 300,
               letterSpacing: '-0.03em',

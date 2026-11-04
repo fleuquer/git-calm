@@ -12,6 +12,7 @@ interface Props {
   groupColor?: string; // Cor customizada (hex) para o grupo (usado em prioridades)
   priorityNum?: string; // Número da prioridade (1-4) para usar o ícone correto
   compactCardView?: boolean;
+  listLayout?: boolean;
 }
 
 export const CardGroup: React.FC<Props> = ({
@@ -23,6 +24,7 @@ export const CardGroup: React.FC<Props> = ({
   groupColor, // Cor customizada para o grupo
   priorityNum, // Número da prioridade (1-4)
   compactCardView = false,
+  listLayout = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false); // Iniciar minimizado
 
@@ -111,7 +113,7 @@ export const CardGroup: React.FC<Props> = ({
 
   return (
     <div
-      className={`mb-3 border-2 ${borderColor || ''} rounded-lg overflow-hidden ${bgColor || ''}`}
+      className={`overflow-hidden ${listLayout ? 'border-b' : 'mb-3 border-2 rounded-lg'} ${borderColor || ''} ${bgColor || ''}`}
       style={customStyle?.container}
     >
       {/* Group Header */}
@@ -140,7 +142,7 @@ export const CardGroup: React.FC<Props> = ({
 
       {/* Group Cards */}
       {isExpanded && (
-        <div className="p-2 space-y-2 bg-white dark:bg-gray-900">
+        <div className={`bg-white dark:bg-gray-900 ${listLayout ? 'border-t border-gray-200 dark:border-gray-700' : 'p-2 space-y-2'}`}>
           {cards.map(card => (
             <ProjectCard
               key={card.id}
@@ -148,6 +150,7 @@ export const CardGroup: React.FC<Props> = ({
               onCardClick={onCardClick}
               animationClass={cardAnimations?.get(card.number) || ''}
               compactView={compactCardView}
+              listLayout={listLayout}
             />
           ))}
         </div>

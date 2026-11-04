@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, User, Palette, Layers, Settings as SettingsIcon, Building, Hash, Key, Calendar, GitBranch, MessageSquare, Download, Upload, CheckCircle, AlertCircle, HardDrive, Type, Package, Bell, AtSign, UserCheck, Volume2, VolumeX, Play, Monitor, History, SlidersHorizontal } from 'lucide-react';
+import { X, User, Palette, Layers, Settings as SettingsIcon, Building, Hash, Key, Calendar, GitBranch, MessageSquare, Download, Upload, CheckCircle, AlertCircle, HardDrive, Type, Package, Bell, AtSign, UserCheck, Volume2, VolumeX, Play, Monitor, History, SlidersHorizontal, Check } from 'lucide-react';
 import { ViewManagerModal } from './ViewManagerModal';
 import { RepoMappingConfig } from './RepoMappingConfig';
 import { TemplateManager } from './TemplateManager';
@@ -438,6 +438,7 @@ export const SettingsPanel: React.FC<Props> = ({
         github_active_view: 'Aba ativa',
         github_theme: 'Tema',
         github_compact_card_view: 'Modo compacto',
+        github_list_layout: 'Layout em lista',
         realtime_enabled: 'Atualizações em tempo real',
         github_hidden_labels: 'Labels ocultas',
         github_force_visible_labels: 'Labels sempre visíveis',
@@ -734,31 +735,39 @@ export const SettingsPanel: React.FC<Props> = ({
               </h3>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {themes.map((theme) => (
-                  <button
-                    key={theme.id}
-                    onClick={() => onThemeChange(theme.id)}
-                    className={`p-4 rounded-lg border-2 transition-all ${
-                      selectedTheme === theme.id
-                        ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <div
-                        className={`w-8 h-8 rounded-full ${theme.colors.primary}`}
-                      />
-                      <span className="font-medium text-gray-900 dark:text-gray-100">
-                        {theme.name}
-                      </span>
-                    </div>
-                    <div className="flex gap-1">
-                      <div className={`flex-1 h-2 rounded ${theme.colors.primary}`} />
-                      <div className={`flex-1 h-2 rounded ${theme.colors.badge}`} />
-                      <div className={`flex-1 h-2 rounded ${theme.colors.columnHeader}`} />
-                    </div>
-                  </button>
-                ))}
+                {themes.map((theme) => {
+                  const [bg, card, text, accent] = theme.swatch;
+                  const isSelected = selectedTheme === theme.id;
+                  return (
+                    <button
+                      key={theme.id}
+                      onClick={() => onThemeChange(theme.id)}
+                      className={`text-left rounded-lg border p-2 transition-all ${
+                        isSelected
+                          ? 'border-blue-600 ring-2 ring-blue-600/30'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                      }`}
+                    >
+                      {/* Miniatura do board no tema */}
+                      <div className="rounded-md p-2 flex gap-1.5 h-16" style={{ background: bg }}>
+                        {[0, 1].map(col => (
+                          <div key={col} className="flex-1 flex flex-col gap-1">
+                            <div className="h-1 w-2/3 rounded-full" style={{ background: text, opacity: 0.5 }} />
+                            <div className="rounded-sm p-1 space-y-1" style={{ background: card }}>
+                              <div className="h-1 w-full rounded-full" style={{ background: text, opacity: 0.85 }} />
+                              <div className="h-1 w-1/2 rounded-full" style={{ background: accent }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-2 px-0.5 flex items-center justify-between gap-2">
+                        <span className="text-sm font-normal text-gray-900 dark:text-gray-100">{theme.name}</span>
+                        {isSelected && <Check size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />}
+                      </div>
+                      <p className="px-0.5 text-xs text-gray-500 dark:text-gray-400 truncate">{theme.description}</p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

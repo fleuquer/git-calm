@@ -184,7 +184,7 @@ export const WeeklyPlanningModal: React.FC<Props> = ({
         <div className="flex items-start justify-between gap-2 mb-2">
           <button
             onClick={() => setSelectedCard(card)}
-            className="text-sm font-medium text-gray-900 dark:text-white hover:underline text-left"
+            className="text-sm font-normal text-gray-900 dark:text-white hover:underline text-left"
           >
             <span className="text-blue-600 dark:text-blue-400 font-bold mr-1">#{card.number}</span>
             {card.title}

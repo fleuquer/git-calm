@@ -13,6 +13,7 @@ const CONFIG_KEYS = [
   'github_hidden_labels',
   'github_force_visible_labels',
   'github_compact_card_view',
+  'github_list_layout',
   'realtime_enabled',
   'view_hidden_labels',
   'theme',

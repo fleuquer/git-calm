@@ -887,7 +887,7 @@ export const DailyReportModal: React.FC<Props> = ({
                                 )}
                               </div>
                             </div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white mb-1">
+                            <p className="text-sm font-normal text-gray-900 dark:text-white mb-1">
                               {report.summary.mainCard.title}
                             </p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">{report.summary.mainCard.status}</p>

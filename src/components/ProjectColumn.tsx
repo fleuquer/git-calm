@@ -25,6 +25,7 @@ interface Props {
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   compactCardView?: boolean;
+  listLayout?: boolean;
   onDropCard?: (cardId: string, targetStatus: string) => Promise<void>;
   sortOption?: CardSortOption;
   onSortChange?: (option: CardSortOption) => void;
@@ -48,11 +49,17 @@ export const ProjectColumn: React.FC<Props> = ({
   isCollapsed = false,
   onToggleCollapse,
   compactCardView = false,
+  listLayout = false,
   onDropCard,
   sortOption = DEFAULT_CARD_SORT,
   onSortChange,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // Cartões: colunas coladas, separadas por uma linha, com cards soltos dentro.
+  // Lista: cada coluna é um painel com moldura própria (o board dá o espaço entre
+  // eles) e os cards ficam colados nas bordas, para a tarja nunca encostar na coluna vizinha.
+  const columnFrame = listLayout ? 'border rounded-md overflow-hidden' : 'border-r';
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement>(null);
 
@@ -99,7 +106,7 @@ export const ProjectColumn: React.FC<Props> = ({
   if (isCollapsed) {
     return (
       <div
-        className="bg-gray-200 dark:bg-gray-800/50 shrink-0 w-12 border-r border-gray-300 dark:border-gray-700 h-full flex flex-col items-center cursor-pointer hover:bg-gray-300 dark:hover:bg-gray-700/50 transition-colors group"
+        className={`bg-gray-100 dark:bg-gray-800/50 shrink-0 w-12 border-gray-200 dark:border-gray-700 h-full flex flex-col items-center cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors group ${columnFrame}`}
         onClick={onToggleCollapse}
         title={`${column.name} (${column.cards.length})`}
       >
@@ -122,7 +129,7 @@ export const ProjectColumn: React.FC<Props> = ({
   // Renderização normal (expandida)
   return (
     <div
-      className={`bg-gray-200 dark:bg-gray-800/50 shrink-0 w-[380px] border-r border-gray-300 dark:border-gray-700 h-full flex flex-col transition-colors ${
+      className={`bg-gray-100 dark:bg-gray-800/50 shrink-0 w-[380px] border-gray-200 dark:border-gray-700 h-full flex flex-col transition-colors ${columnFrame} ${
         isDragOver ? 'ring-2 ring-inset ring-blue-400 dark:ring-blue-500 bg-blue-50 dark:bg-blue-900/20' : ''
       }`}
       onDragOver={onDropCard ? (e) => { e.preventDefault(); setIsDragOver(true); } : undefined}
@@ -144,7 +151,7 @@ export const ProjectColumn: React.FC<Props> = ({
       >
         <h3 className="font-semibold text-gray-800 dark:text-gray-100 text-sm truncate">{column.name}</h3>
         <div className="flex items-center gap-1.5 shrink-0 ml-2">
-          <span className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium px-2 py-0.5 rounded-full">
+          <span className={`bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs font-medium px-2 py-0.5 tabular-nums ${listLayout ? 'rounded-sm' : 'rounded-full'}`}>
             {column.cards.length}
           </span>
           {onSortChange && (
@@ -191,9 +198,9 @@ export const ProjectColumn: React.FC<Props> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className={`flex-1 overflow-y-auto ${listLayout ? '' : 'p-2'}`}>
         {hasContent ? (
-          <div className="space-y-2">
+          <div className={listLayout ? '' : 'space-y-2'}>
             {/* Renderizar grupos */}
             {groups.map((group) => {
               // Para grupos de prioridade, passar a cor customizada e o número
@@ -211,6 +218,7 @@ export const ProjectColumn: React.FC<Props> = ({
                   groupColor={groupColor}
                   priorityNum={priorityNum}
                   compactCardView={compactCardView}
+                  listLayout={listLayout}
                 />
               );
             })}            {/* Renderizar cards não agrupados */}
@@ -228,6 +236,7 @@ export const ProjectColumn: React.FC<Props> = ({
                 onCardClick={onCardClick}
                 animationClass={cardAnimations?.get(card.number) || ''}
                 compactView={compactCardView}
+                listLayout={listLayout}
                 draggable={!!onDropCard}
                 onDragStart={onDropCard ? () => {} : undefined}
                 columnStatus={column.name}

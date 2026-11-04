@@ -1,7 +1,9 @@
 import React from 'react';
 import type { ProjectCard as ProjectCardType } from '../types';
-import { Clock, AlertCircle, XCircle, AlertTriangle, Wrench, Sparkles, MapPin, Calendar } from 'lucide-react';
+import { Clock, AlertCircle, XCircle, AlertTriangle, Wrench, Sparkles, MapPin, Calendar, UserX } from 'lucide-react';
 import { convertGithubEmojis } from '../utils/emojiConverter';
+import { getLabelStyle } from '../utils/labelColors';
+import { normalizeTitleCase } from '../utils/titleCase';
 
 interface Props {
   card: ProjectCardType;
@@ -15,17 +17,20 @@ interface Props {
   onCardClick?: (card: ProjectCardType) => void;
   animationClass?: string;
   compactView?: boolean;
+  /** Layout em lista: cards colados, sem arredondamento, avatares quadrados */
+  listLayout?: boolean;
   draggable?: boolean;
   onDragStart?: () => void;
   columnStatus?: string;
 }
 
 // Mapa de ícones para tipos de issue (formato: "1-Erro", "2-Problema", etc)
-const TYPE_ICON_MAP: { [key: string]: { icon: any; color: string; darkColor: string } } = {
-  '1': { icon: XCircle, color: '#ef4444', darkColor: '#dc2626' }, // Erro - vermelho mais escuro
-  '2': { icon: AlertTriangle, color: '#f97316', darkColor: '#ea580c' }, // Problema - laranja mais escuro
-  '3': { icon: Wrench, color: '#3b82f6', darkColor: '#2563eb' }, // Adequação - azul mais escuro
-  '4': { icon: Sparkles, color: '#8b5cf6', darkColor: '#7c3aed' }, // Melhoria - roxo mais escuro
+// Cores em index.css (--type-N): mudam com o tema
+const TYPE_ICON_MAP: { [key: string]: { icon: any; color: string } } = {
+  '1': { icon: XCircle, color: 'var(--type-1)' },       // Erro
+  '2': { icon: AlertTriangle, color: 'var(--type-2)' }, // Problema
+  '3': { icon: Wrench, color: 'var(--type-3)' },        // Adequação
+  '4': { icon: Sparkles, color: 'var(--type-4)' },      // Melhoria
 };
 
 // Labels que devem ser ocultadas por contexto
@@ -86,7 +91,7 @@ function getLastInteractionText(card: ProjectCardType): string {
 
   // Inferir tipo de interação baseado no que mudou
   if (card.assignees.length === 0) {
-    return `Sem responsável • ${timeAgo}`;
+    return `Última atualização • ${timeAgo}`;
   }
 
   if (card.dueDate) {
@@ -159,6 +164,7 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
   onCardClick,
   animationClass,
   compactView = false,
+  listLayout = false,
   draggable: isDraggable = false,
   columnStatus,
 }) => {
@@ -166,8 +172,14 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
   const agingColor = getAgingColor(daysSinceUpdate);
   const isOld = daysSinceUpdate > 7;
 
-  // Verificar se não tem assignees (precisa piscar)
+  // Verificar se não tem assignees (recebe destaque visual)
   const hasNoAssignees = card.assignees.length === 0;
+  // Avatar vazio tracejado: sinaliza card sem responsável sem animação chamativa
+  const unassignedAvatar = (size: string) => (
+    <span className={`${size} ${listLayout ? 'rounded' : 'rounded-full'} border border-dashed border-red-400 dark:border-red-500/70 bg-red-50 dark:bg-red-500/10 flex items-center justify-center`}>
+      <UserX size={12} className="text-red-500 dark:text-red-400" />
+    </span>
+  );
 
   // Calcular status do due date
   let dueDateStatus: 'overdue' | 'soon' | 'normal' | null = null;
@@ -189,17 +201,33 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
     !shouldHideLabel(l.name, activeViewId, hiddenLabels)
   );
 
-  // Determinar se precisa de borda de destaque (apenas para tipo)
-  let typeBorderStyle = {};
-  let typeBorderClass = '';
-  if (typeLabels.length > 0) {
-    const type = typeLabels[0].name.match(/^([1-4])-/)?.[1];
-    if (type && TYPE_ICON_MAP[type]) {
-      // Usar classe CSS para alternar entre cores light/dark
-      typeBorderClass = `type-border-${type}`;
-      typeBorderStyle = { borderLeftWidth: '4px' };
-    }
-  }
+  // Tipo da issue (1-4): define a cor da tarja
+  const typeNum = typeLabels
+    .map(l => l.name.match(/^([1-4])-/)?.[1])
+    .find(t => t && TYPE_ICON_MAP[t]);
+
+  // Lista: tarja como borda esquerda (com os cards colados vira uma faixa contínua).
+  // Cartões: barra fina por dentro do card, que não acompanha a curva do canto arredondado.
+  const typeBorderClass = listLayout && typeNum ? `type-border-${typeNum}` : '';
+  const typeBorderStyle: React.CSSProperties = listLayout
+    ? { borderLeftWidth: '3px', borderLeftStyle: 'solid', ...(typeNum ? {} : { borderLeftColor: 'transparent' }) }
+    : {};
+
+  // Títulos em CAIXA ALTA são exibidos como frase normal (o título real fica no tooltip)
+  const displayTitle = normalizeTitleCase(card.title);
+
+  // Avatares presos no canto inferior direito, nos dois layouts. O rodapé reserva esse
+  // espaço (a última linha tem a altura do avatar), então o título usa a largura toda;
+  // no compacto o título é a última linha visível e também reserva.
+  const maxAvatars = 3;
+  const shownAvatars = hasNoAssignees ? 1 : Math.min(card.assignees.length, maxAvatars);
+  // No compacto o card é baixo: avatar menor para não encostar no tempo do canto superior
+  const avatarPx = compactView ? 24 : 28;
+  const avatarSizeClass = compactView ? 'w-6 h-6' : 'w-7 h-7';
+  const avatarStep = listLayout ? avatarPx + 2 : avatarPx - 6; // quadrados lado a lado / redondos sobrepostos
+  const avatarSpace = avatarPx + (shownAvatars - 1) * avatarStep + (card.assignees.length > maxAvatars ? 24 : 0) + 10;
+  const reserveAvatarSpace = { paddingRight: avatarSpace };
+  const avatarPosition = `absolute right-3 ${compactView ? 'bottom-2' : listLayout ? 'bottom-2.5' : 'bottom-3'}`;
 
   // Calcular opacidade baseado no aging (sem mudar cor de fundo)
   let opacityValue = 1;
@@ -232,11 +260,18 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
         e.dataTransfer.effectAllowed = 'move';
       } : undefined}
       className={`
-        bg-white dark:bg-gray-800 rounded p-2.5 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all group cursor-pointer card-type-border card-transition
-        ${hasNoAssignees ? 'animate-pulse-card' : ''}
+        relative group cursor-pointer card-type-border card-transition transition-all
+        ${listLayout
+          ? `border-0 border-b border-gray-200 dark:border-gray-700 px-3 py-2.5 ${hasNoAssignees
+              ? 'bg-red-50 dark:bg-red-500/[0.07] hover:bg-red-100/70 dark:hover:bg-red-500/[0.12]'
+              : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700/50'}`
+          : `bg-white dark:bg-gray-800 rounded-lg p-3 border shadow-sm dark:shadow-none hover:shadow-md ${hasNoAssignees
+              ? 'border-dashed border-red-400/80 dark:border-red-500/60'
+              : 'border-transparent dark:border-gray-700 dark:hover:border-gray-600'}`}
         ${animationClass || ''}
         ${typeBorderClass}
         ${compactView ? 'compact-card-view' : ''}
+        ${listLayout ? 'list-card-view' : ''}
         ${isDraggable ? 'cursor-grab active:cursor-grabbing' : ''}
       `}
       style={{
@@ -244,6 +279,14 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
         opacity: opacityValue,
       }}
     >
+      {/* Tarja do tipo nos cartões: barra fina por dentro, afastada dos cantos */}
+      {!listLayout && typeNum && (
+        <span
+          aria-hidden
+          className="absolute left-1 top-2.5 bottom-2.5 w-[3px] rounded-full"
+          style={{ background: `var(--type-${typeNum})` }}
+        />
+      )}
       <a
         href={card.url}
         target="_blank"
@@ -254,7 +297,7 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
         {/* Header: Número, Tipo e Aging */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 tabular-nums">
               #{card.number}
             </span>
 
@@ -278,8 +321,8 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
             {/* Ícone de cidade */}
             {cityLabels.length > 0 && (
               <div className="flex items-center gap-0.5" title={cityLabels.map(l => l.name).join(', ')}>
-                <MapPin size={12} className="text-blue-600 dark:text-blue-400" />
-                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                <MapPin size={12} className="text-gray-400 dark:text-gray-500" />
+                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
                   {cityLabels[0].name.split('-')[1]}
                 </span>
               </div>
@@ -305,46 +348,15 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
           )}
         </div>
 
-        {/* Título + badge de assignees (compacto, alinhados na mesma linha) */}
-        <div className={compactView && card.assignees.length > 0 ? 'flex items-start gap-1.5 mb-1.5' : ''}>
-          <h4 className={`text-sm font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-snug flex-1 ${compactView && card.assignees.length > 0 ? '' : 'mb-1.5'} line-clamp-3`}>
-            {card.title}
+        {/* Título */}
+        <div style={compactView ? reserveAvatarSpace : undefined}>
+          <h4 className="text-sm font-normal text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-snug mb-1.5 line-clamp-3" title={displayTitle !== card.title ? card.title : undefined}>
+            {displayTitle}
           </h4>
-
-          {/* Badge de avatares: inline com o título, some no hover */}
-          {compactView && card.assignees.length > 0 && (
-            <div className="compact-assignees flex -space-x-1.5 shrink-0 mt-0.5 transition-opacity duration-200">
-              {card.assignees.slice(0, 4).map((assignee) => (
-                <img
-                  key={assignee.login}
-                  src={assignee.avatarUrl}
-                  alt={assignee.login}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onAssigneeClick?.(assignee.login);
-                  }}
-                  className={`w-4 h-4 rounded-full border-2 cursor-pointer ${
-                    assignee.login === currentUser
-                      ? 'border-blue-500 dark:border-blue-400'
-                      : 'border-white dark:border-gray-800'
-                  } ${
-                    activeAssigneeFilter === assignee.login
-                      ? 'ring-2 ring-yellow-400 dark:ring-yellow-500'
-                      : ''
-                  }`}
-                  title={assignee.login}
-                />
-              ))}
-              {card.assignees.length > 4 && (
-                <span className="text-xs text-gray-400 dark:text-gray-500 pl-1 self-center">+{card.assignees.length - 4}</span>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Conteúdo expansível (oculto em modo compacto, visível ao hover) */}
-        <div className={compactView ? 'compact-card-expandable' : ''}>
+        <div className={compactView ? 'compact-card-expandable' : ''} style={reserveAvatarSpace}>
           {/* Labels regulares */}
           {regularLabels.length > 0 && (
             <div className="flex flex-wrap gap-1 mb-2">
@@ -356,24 +368,12 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
                   e.stopPropagation();
                   onLabelClick?.(label.name);
                 }}
-                className={`text-xs px-1.5 py-0.5 rounded font-medium dark:border cursor-pointer hover:scale-105 transition-transform ${
+                className={`text-xs px-1.5 py-0.5 ${listLayout ? 'rounded-sm' : 'rounded'} font-medium dark:border cursor-pointer hover:scale-105 transition-transform ${
                   activeLabelFilter === label.name
                     ? 'ring-2 ring-yellow-400 dark:ring-yellow-500'
                     : ''
                 }`}
-                style={{
-                  // Tema claro: fundo preenchido com texto branco
-                  backgroundColor: document.documentElement.classList.contains('dark')
-                    ? `#${label.color}20`
-                    : `#${label.color}`,
-                  color: document.documentElement.classList.contains('dark')
-                    ? `#${label.color}`
-                    : '#ffffff',
-                  borderColor: document.documentElement.classList.contains('dark')
-                    ? `#${label.color}40`
-                    : 'transparent',
-                  borderWidth: '1px',
-                }}
+                style={getLabelStyle(label.color)}
                 title={activeLabelFilter === label.name ? `Filtrado por: ${convertGithubEmojis(label.name)} (clique para remover)` : `Clique para filtrar por ${convertGithubEmojis(label.name)}`}
               >
                 {convertGithubEmojis(label.name)}
@@ -382,41 +382,11 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
           </div>
         )}
 
-        {/* Footer: Avatares e Due Date */}
-        <div className="flex items-center justify-between gap-2 mt-2">
-          {/* Assignees */}
-          {card.assignees.length > 0 && (
-            <div className="flex items-center gap-1.5">
-              <div className="flex -space-x-2">
-                {card.assignees.slice(0, 3).map((assignee) => (
-                  <img
-                    key={assignee.login}
-                    src={assignee.avatarUrl}
-                    alt={assignee.login}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onAssigneeClick?.(assignee.login);
-                    }}
-                    className={`w-6 h-6 rounded-full border-2 hover:z-10 transition-transform hover:scale-125 cursor-pointer ${
-                      assignee.login === currentUser
-                        ? 'border-blue-500 dark:border-blue-400 ring-2 ring-blue-400 dark:ring-blue-300 ring-offset-1 scale-110 z-10'
-                        : 'border-white dark:border-gray-800'
-                    } ${
-                      activeAssigneeFilter === assignee.login
-                        ? 'ring-4 ring-yellow-400 dark:ring-yellow-500 scale-125'
-                        : ''
-                    }`}
-                    title={activeAssigneeFilter === assignee.login ? `Filtrado por: ${assignee.login} (clique para remover)` : `Clique para filtrar por ${assignee.login}`}
-                  />
-                ))}
-              </div>
-              {card.assignees.length > 3 && (
-                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                  +{card.assignees.length - 3}
-                </span>
-              )}
-            </div>
+        {/* Alertas: sem responsável e prazo */}
+        {(hasNoAssignees || card.dueDate) && (
+        <div className="flex items-center gap-3 mt-2">
+          {hasNoAssignees && (
+            <span className="text-xs font-medium text-red-600 dark:text-red-400">Sem responsável</span>
           )}
 
           {/* Due Date */}
@@ -440,16 +410,17 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
             </div>
           )}
         </div>
+        )}
 
-        {/* Última interação */}
-        <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+        {/* Última interação (linha com a altura dos avatares, que ficam à direita) */}
+        <div className={`mt-1.5 flex items-center ${compactView ? 'min-h-6' : 'min-h-7'}`}>
           <div
-            className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 italic"
+            className="flex items-center gap-1.5 min-w-0 text-xs text-gray-500 dark:text-gray-400"
             title={card.lastEventDetails || undefined}
           >
             {card.lastEventLoading ? (
               <>
-                <Clock size={10} className="animate-spin" />
+                <Clock size={10} className="animate-spin shrink-0" />
                 <span>Carregando...</span>
               </>
             ) : card.lastEvent && card.lastEventActor ? (
@@ -458,22 +429,59 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
                   <img
                     src={card.lastEventActorAvatar}
                     alt={card.lastEventActor}
-                    className="w-4 h-4 rounded-full"
+                    className="w-4 h-4 rounded-full shrink-0"
                     title={card.lastEventActor}
                   />
                 )}
-                <span>{card.lastEvent}</span>
+                <span className="truncate">{card.lastEvent}</span>
               </>
             ) : (
               <>
-                <Clock size={10} />
-                <span>{getLastInteractionText(card)}</span>
+                <Clock size={10} className="shrink-0" />
+                <span className="truncate">{getLastInteractionText(card)}</span>
               </>
             )}
           </div>
         </div>
         </div>
         {/* Fim do conteúdo expansível */}
+
+        {/* Responsáveis: canto inferior direito (quadrados na lista, redondos nos cartões) */}
+        {card.assignees.length > 0 ? (
+          <div className={`${avatarPosition} flex items-center ${listLayout ? 'gap-0.5' : '-space-x-1.5'}`}>
+            {card.assignees.slice(0, maxAvatars).map((assignee) => (
+              <img
+                key={assignee.login}
+                src={assignee.avatarUrl}
+                alt={assignee.login}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onAssigneeClick?.(assignee.login);
+                }}
+                className={`${avatarSizeClass} object-cover cursor-pointer ${
+                  listLayout ? 'rounded' : 'rounded-full ring-2'
+                } ${
+                  assignee.login === currentUser
+                    ? 'ring-2 ring-blue-500 dark:ring-blue-400 relative z-10'
+                    : listLayout ? '' : 'ring-white dark:ring-gray-800'
+                } ${
+                  activeAssigneeFilter === assignee.login
+                    ? 'outline-2 outline-offset-1 outline-yellow-400 dark:outline-yellow-500'
+                    : ''
+                }`}
+                title={activeAssigneeFilter === assignee.login ? `Filtrado por: ${assignee.login} (clique para remover)` : `Clique para filtrar por ${assignee.login}`}
+              />
+            ))}
+            {card.assignees.length > maxAvatars && (
+              <span className="text-xs text-gray-500 dark:text-gray-400 pl-1.5 tabular-nums">+{card.assignees.length - maxAvatars}</span>
+            )}
+          </div>
+        ) : (
+          <span className={avatarPosition} title="Sem responsável">
+            {unassignedAvatar(avatarSizeClass)}
+          </span>
+        )}
       </a>
     </div>
   );

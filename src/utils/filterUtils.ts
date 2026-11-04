@@ -222,12 +222,12 @@ export interface PriorityGroup extends CardGroup {
 export function groupCardsByPriority(cards: ProjectColumn['cards']): PriorityGroup[] {
   const groups = new Map<string, { cards: ProjectColumn['cards']; color: string; priorityNum: string }>();
 
-  // Mapa de prioridades com cores (mesmas do ProjectCard)
+  // Mapa de prioridades com cores (mesmas das tarjas, --type-N em index.css)
   const priorityInfo: Record<string, { name: string; color: string }> = {
-    '1': { name: 'Erro', color: '#ef4444' },
-    '2': { name: 'Problema', color: '#f97316' },
-    '3': { name: 'Adequação', color: '#3b82f6' },
-    '4': { name: 'Melhoria', color: '#8b5cf6' }
+    '1': { name: 'Erro', color: '#dc2626' },
+    '2': { name: 'Problema', color: '#f59e0b' },
+    '3': { name: 'Adequação', color: '#0ea5e9' },
+    '4': { name: 'Melhoria', color: '#7c3aed' }
   };
 
   cards.forEach(card => {
