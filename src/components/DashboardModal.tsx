@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BarChart2, Eye, EyeOff, Filter, Table } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, Legend, LineChart, Line,
+  Legend, LineChart, Line,
 } from 'recharts';
 import type { ProjectColumn, ViewTab } from '../types';
 import { filterColumns } from '../utils/filterUtils';
@@ -62,8 +62,17 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-const renderPieLabel = ({ percent }: any) =>
-  percent > 0.04 ? `${(percent * 100).toFixed(0)}%` : '';
+// Rótulo do eixo em uma linha só (o padrão do Recharts quebra nomes longos em duas linhas)
+const SingleLineTick = ({ x, y, payload }: any) => {
+  const text = String(payload?.value ?? '');
+  const short = text.length > 30 ? `${text.slice(0, 29)}…` : text;
+  return (
+    <text x={x} y={y} dy={4} textAnchor="end" fontSize={13} fill="currentColor" className="text-gray-500 dark:text-gray-400">
+      <title>{text}</title>
+      {short}
+    </text>
+  );
+};
 
 // ── SectionTitle ──────────────────────────────────────────────────────────
 function SectionTitle({ children }: { children: React.ReactNode }) {
@@ -469,6 +478,7 @@ export function DashboardModal({ columns, views }: Props) {
     () => byStatus.filter(s => !byStatusExcluded.has(s.name)),
     [byStatus, byStatusExcluded]
   );
+  const byStatusFilteredTotal = byStatusFiltered.reduce((sum, s) => sum + s.value, 0);
   const byAssigneeFiltered = useMemo(
     () => byAssignee.filter(a => !byAssigneeExcluded.has(a.name)),
     [byAssignee, byAssigneeExcluded]
@@ -570,17 +580,31 @@ export function DashboardModal({ columns, views }: Props) {
                     tableSlot={byStatusFiltered.length > 0 ? <SimpleTable rows={byStatusFiltered} /> : <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-8">Nenhum status selecionado.</p>}
                   >
                     {byStatusFiltered.length > 0 ? (
-                      <div className="flex-1 min-h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie data={byStatusFiltered} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={115} labelLine={false} label={renderPieLabel}>
-                              {byStatusFiltered.map((_, i) => <Cell key={i} fill={color(i)} />)}
-                            </Pie>
-                            <Tooltip content={<CustomTooltip />} />
-                            <Legend formatter={(v) => <span className="text-sm text-gray-700 dark:text-gray-300">{v}</span>} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
+                      // Barras horizontais ordenadas: legível mesmo com dezenas de status (a pizza
+                      // virava fatias finas com rótulos sobrepostos à legenda — issue #9)
+                      <ResponsiveContainer width="100%" height={Math.max(240, byStatusFiltered.length * 30 + 20)}>
+                        <BarChart data={byStatusFiltered} layout="vertical" margin={{ left: 8, right: 72 }} barSize={18}>
+                          <XAxis type="number" tick={{ fontSize: 13 }} allowDecimals={false} />
+                          <YAxis type="category" dataKey="name" tick={<SingleLineTick />} width={220} interval={0} />
+                          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'currentColor', fillOpacity: 0.06 }} />
+                          <Bar
+                            dataKey="value"
+                            name="Cards"
+                            radius={[0, 4, 4, 0]}
+                            label={{
+                              position: 'right',
+                              fontSize: 13,
+                              fill: 'currentColor',
+                              formatter: (v: any) => {
+                                const pct = byStatusFilteredTotal > 0 ? (Number(v) / byStatusFilteredTotal) * 100 : 0;
+                                return `${v} · ${pct < 1 ? '<1' : pct.toFixed(0)}%`;
+                              },
+                            }}
+                          >
+                            {byStatusFiltered.map((_, i) => <Cell key={i} fill={color(i)} />)}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
                     ) : (
                       <p className="text-xs text-gray-400 dark:text-gray-500 text-center py-8">Nenhum status selecionado.</p>
                     )}
