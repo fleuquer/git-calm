@@ -33,6 +33,8 @@ import { useGithubNotifications, type GithubNotification, DEFAULT_NOTIFICATION_S
 import { DEFAULT_CARD_SORT, type CardSortOption } from './utils/cardSort';
 import { setProjectSingleSelectFields } from './utils/prioritySettings';
 import type { IssueLinkRef } from './utils/issueLinks';
+import { loadCardHistory, recordCardView, clearCardHistory, sameIssue, type CardHistoryEntry } from './utils/cardHistory';
+import { CardHistoryButton } from './components/CardHistoryButton';
 import { getReworkColumns } from './utils/reworkColumns';
 import { recordReworkVisit } from './utils/reworkTracking';
 import {
@@ -88,6 +90,15 @@ function App() {
   // Trilha de navegação entre cards por links (card 1 → link → card 2...): permite voltar
   const [cardTrail, setCardTrail] = useState<ProjectCard[]>([]);
   const [openingIssueLink, setOpeningIssueLink] = useState<IssueLinkRef | null>(null);
+  // Histórico de cards visualizados (issue #6)
+  const [cardHistory, setCardHistory] = useState<CardHistoryEntry[]>(loadCardHistory);
+
+  // Exibe um card no modal e registra no histórico de visualizados
+  const showCard = (card: ProjectCard) => {
+    setSelectedCard(card);
+    setIsCardModalOpen(true);
+    setCardHistory(prev => recordCardView(prev, card));
+  };
 
   // Cache do campo de status (lazy-fetched na primeira movimentação)
   const [statusFieldInfo, setStatusFieldInfo] = useState<{
@@ -245,8 +256,7 @@ function App() {
       const found = allCards.find(c => Number(c.number) === Number(notification.issueNumber));
       if (found) {
         setCardTrail([]);
-        setSelectedCard(found);
-        setIsCardModalOpen(true);
+        showCard(found);
         return;
       }
     }
@@ -275,8 +285,7 @@ function App() {
             repo: notification.repo,
           };
           setCardTrail([]);
-          setSelectedCard(card);
-          setIsCardModalOpen(true);
+          showCard(card);
           return;
         }
       } catch (err) {
@@ -731,15 +740,13 @@ function App() {
   // Handler para abrir modal do card
   const handleCardClick = (card: ProjectCard) => {
     setCardTrail([]);
-    setSelectedCard(card);
-    setIsCardModalOpen(true);
+    showCard(card);
   };
 
   // Abre um card a partir de um link dentro de outro: o card atual entra na trilha
   const openLinkedCard = (card: ProjectCard) => {
     if (selectedCard) setCardTrail(prev => [...prev, selectedCard]);
-    setSelectedCard(card);
-    setIsCardModalOpen(true);
+    showCard(card);
   };
 
   // Volta para um card da trilha (índice), descartando os que vieram depois dele.
@@ -749,26 +756,25 @@ function App() {
     if (!target) return;
     const fresh = [...columns.flatMap(col => col.cards), ...archivedCards].find(c => c.id === target.id);
     setCardTrail(prev => prev.slice(0, index));
-    setSelectedCard(fresh ?? target);
+    showCard(fresh ?? target);
   };
 
   // Link para outra issue dentro de um card (issue #5): abre o card no app em vez de ir ao GitHub.
   // Procura no board (e nos arquivados); se não estiver lá, busca a issue na API; se nada der
   // certo (ex: PR fora do board, sem acesso), abre o link no GitHub como antes.
   const handleOpenIssueLink = async (ref: IssueLinkRef) => {
-    const sameIssue = (c: ProjectCard) =>
-      c.number === ref.number && (c.repo ?? '').toLowerCase() === ref.repo.toLowerCase();
+    const isTarget = (c: ProjectCard) => sameIssue(c, ref);
 
-    if (selectedCard && sameIssue(selectedCard)) return; // link para o próprio card
+    if (selectedCard && isTarget(selectedCard)) return; // link para o próprio card
 
     // Se o card já está na trilha, volta até ele em vez de empilhar de novo (evita ciclos 1 → 2 → 1 → 2)
-    const trailIndex = cardTrail.findIndex(sameIssue);
+    const trailIndex = cardTrail.findIndex(isTarget);
     if (trailIndex >= 0) {
       handleNavigateTrail(trailIndex);
       return;
     }
 
-    const known = [...columns.flatMap(col => col.cards), ...archivedCards].find(sameIssue);
+    const known = findCardOnBoard(ref);
     if (known) {
       openLinkedCard(known);
       return;
@@ -788,6 +794,46 @@ function App() {
     }
     window.open(ref.url, '_blank', 'noopener,noreferrer');
   };
+
+  const findCardOnBoard = (ref: { number: number; repo?: string }) =>
+    [...columns.flatMap(col => col.cards), ...archivedCards].find(c => sameIssue(c, ref));
+
+  // Reabre um card do histórico: usa a versão do board; se não estiver lá, busca na API
+  const handleOpenFromHistory = async (entry: CardHistoryEntry) => {
+    const known = findCardOnBoard(entry);
+    if (known) {
+      handleCardClick(known);
+      return;
+    }
+    if (entry.repo) {
+      const fetched = await new GitHubService(token).getIssueAsCard(org, entry.repo, entry.number);
+      if (fetched) {
+        handleCardClick(fetched);
+        return;
+      }
+    }
+    window.open(entry.url, '_blank', 'noopener,noreferrer');
+  };
+
+  // Alt+← com nenhum card aberto reabre o último visualizado (como o "voltar" do navegador).
+  // Com um card aberto, o Alt+← é tratado pela trilha de navegação do próprio modal.
+  const reopenLastCardRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    reopenLastCardRef.current = () => {
+      if (!isCardModalOpen && cardHistory.length > 0) handleOpenFromHistory(cardHistory[0]);
+    };
+  });
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.altKey || e.key !== 'ArrowLeft') return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return;
+      e.preventDefault(); // evita o "voltar" do navegador, que sairia do app
+      reopenLastCardRef.current();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   // Mover card para outra coluna (atualiza status no GitHub Projects)
   const handleMoveCard = async (cardId: string, targetStatus: string) => {
@@ -941,6 +987,14 @@ function App() {
                 onMarkAllRead={markAllActivityRead}
                 onMarkRead={markActivityRead}
                 onClearAll={clearActivityLog}
+              />
+
+              {/* Cards visualizados recentemente */}
+              <CardHistoryButton
+                history={cardHistory}
+                onOpen={handleOpenFromHistory}
+                onClear={() => setCardHistory(clearCardHistory())}
+                findOnBoard={findCardOnBoard}
               />
 
               <ThemeSwitcher selectedTheme={selectedTheme} onThemeChange={handleThemeChange} />
