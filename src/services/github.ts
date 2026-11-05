@@ -25,11 +25,16 @@ export interface MentionedIssue {
   comments: { body: string; createdAt: string; url: string; author: string; authorAvatar: string }[];
 }
 
+/** Cliente Octokit com o proxy de desenvolvimento já configurado */
+export function createOctokit(token: string): Octokit {
+  return new Octokit({ auth: token, request: { fetch: proxyFetch } });
+}
+
 export class GitHubService {
   private octokit: Octokit;
 
   constructor(token: string) {
-    this.octokit = new Octokit({ auth: token, request: { fetch: proxyFetch } });
+    this.octokit = createOctokit(token);
   }
 
   async getProjectItems(org: string, projectNumber: number) {

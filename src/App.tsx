@@ -36,6 +36,8 @@ import type { IssueLinkRef } from './utils/issueLinks';
 import { loadCardHistory, recordCardView, clearCardHistory, sameIssue, type CardHistoryEntry } from './utils/cardHistory';
 import { PendingMentionsButton } from './components/PendingMentionsButton';
 import { usePageVisible } from './hooks/usePageVisible';
+import { RefSearchModal } from './components/RefSearchModal';
+import type { CardSearchBarHandle } from './components/CardSearchBar';
 import { usePendingMentions } from './hooks/usePendingMentions';
 import { getReworkColumns } from './utils/reworkColumns';
 import { recordReworkVisit } from './utils/reworkTracking';
@@ -120,6 +122,39 @@ function App() {
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
   const [isDailyReportModalOpen, setIsDailyReportModalOpen] = useState(false);
   const [isWeeklyPlanningModalOpen, setIsWeeklyPlanningModalOpen] = useState(false);
+  // Busca geral de branches e commits (#10)
+  const [refSearch, setRefSearch] = useState<{ open: boolean; query: string; key: number }>({ open: false, query: '', key: 0 });
+  const openRefSearch = (query = '') => setRefSearch(prev => ({ open: true, query, key: prev.key + 1 }));
+  // Card aberto a partir da busca de branches: ao fechar o card, volta para a busca como estava
+  const returnToRefSearchRef = useRef(false);
+  const cardSearchRef = useRef<CardSearchBarHandle>(null);
+
+  // Atalhos globais: "/" ou Ctrl+K abre a busca de cards; "B" abre a busca de branches e commits.
+  // Ignorados enquanto se digita num campo ou com algum modal/painel aberto.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+      const overlayOpen = !!document.querySelector('.fixed.inset-0');
+      if (overlayOpen) return;
+      const ctrlK = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k';
+      if (ctrlK) {
+        e.preventDefault();
+        cardSearchRef.current?.open();
+        return;
+      }
+      if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === '/') {
+        e.preventDefault();
+        cardSearchRef.current?.open();
+      } else if (e.key === 'b' || e.key === 'B') {
+        e.preventDefault();
+        setRefSearch(prev => ({ ...prev, open: true, query: '' }));
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
   const [mainView, setMainView] = useState<'board' | 'dashboard'>('board');
 
   // Estado para menu de opções do header
@@ -806,20 +841,22 @@ function App() {
     [...columns.flatMap(col => col.cards), ...archivedCards].find(c => sameIssue(c, ref));
 
   // Abre um card por repositório + número: usa a versão do board; se não estiver lá, busca na API
-  const handleOpenFromHistory = async (entry: { number: number; repo?: string; url: string }) => {
+  // Retorna true se o card foi aberto no app (false = abriu no GitHub)
+  const handleOpenFromHistory = async (entry: { number: number; repo?: string; url: string }): Promise<boolean> => {
     const known = findCardOnBoard(entry);
     if (known) {
       handleCardClick(known);
-      return;
+      return true;
     }
     if (entry.repo) {
       const fetched = await new GitHubService(token).getIssueAsCard(org, entry.repo, entry.number);
       if (fetched) {
         handleCardClick(fetched);
-        return;
+        return true;
       }
     }
     window.open(entry.url, '_blank', 'noopener,noreferrer');
+    return false;
   };
 
   // Alt+← com nenhum card aberto reabre o último visualizado (como o "voltar" do navegador).
@@ -966,6 +1003,7 @@ function App() {
               </div>
 
               <CardSearchBar
+                handleRef={cardSearchRef}
                 columns={columns}
                 archivedCards={archivedCards}
                 onCardSelect={handleCardClick}
@@ -974,6 +1012,7 @@ function App() {
                 onOpenHistory={handleOpenFromHistory}
                 onClearHistory={() => setCardHistory(clearCardHistory())}
                 findOnBoard={findCardOnBoard}
+                onRefSearch={openRefSearch}
               />
 
               {/* Menções pendentes de resposta */}
@@ -1136,6 +1175,15 @@ function App() {
                     >
                       <ClipboardList size={14} className="text-gray-400 shrink-0" />
                       <span>Planejamento Semanal</span>
+                    </button>
+
+                    <button
+                      onClick={() => { openRefSearch(); setIsMenuOpen(false); }}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <GitBranch size={14} className="text-gray-400 shrink-0" />
+                      <span>Buscar branch ou commit</span>
+                      <kbd className="ml-auto px-1 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-sans text-gray-400 dark:text-gray-500 leading-4" title="Atalho: B">B</kbd>
                     </button>
 
                     <button
@@ -1309,6 +1357,11 @@ function App() {
           setSelectedCard(null);
           setCardTrail([]);
           pendingMentions.refresh(); // pode ter respondido uma menção no card
+          if (returnToRefSearchRef.current) {
+            returnToRefSearchRef.current = false;
+            // Reabre sem texto inicial: mantém a busca e o item selecionados antes
+            setRefSearch(prev => ({ ...prev, open: true, query: '' }));
+          }
         }}
         token={token}
         org={org}
@@ -1331,6 +1384,27 @@ function App() {
         currentViewId={activeViewId}
         token={token}
         org={org}
+      />
+
+      {/* Busca de branches e commits (#10). Fechar só esconde: a última busca fica guardada */}
+      <RefSearchModal
+        isOpen={refSearch.open}
+        openKey={refSearch.key}
+        initialQuery={refSearch.query}
+        onClose={() => setRefSearch(prev => ({ ...prev, open: false }))}
+        token={token}
+        org={org}
+        findCardsByNumber={(num) => [...columns.flatMap(col => col.cards), ...archivedCards].filter(c => c.number === num)}
+        onOpenCard={async (ref) => {
+          setRefSearch(prev => ({ ...prev, open: false }));
+          returnToRefSearchRef.current = true;
+          const openedInApp = await handleOpenFromHistory(ref);
+          if (!openedInApp) {
+            // Abriu no GitHub: a busca volta na hora
+            returnToRefSearchRef.current = false;
+            setRefSearch(prev => ({ ...prev, open: true, query: '' }));
+          }
+        }}
       />
 
       {/* Weekly Planning Modal */}

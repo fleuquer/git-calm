@@ -22,6 +22,8 @@ export const CHANGELOG: VersionEntry[] = [
       { type: 'improvement', description: 'Cabeçalho mais enxuto: os cards vistos recentemente agora aparecem ao clicar na busca, antes de digitar, em vez de um botão próprio' },
       { type: 'improvement', description: 'Troca de tema movida para o menu de opções do cabeçalho, com a lista de temas aberta no próprio menu' },
       { type: 'improvement', description: 'Atualizações automáticas (board, notificações e menções) pausadas enquanto a aba do app está em segundo plano, retomando ao voltar para ela, para economizar requisições ao GitHub' },
+      { type: 'feat', description: 'Busca de branches e commits em todos os repositórios da organização, por parte do nome da branch, palavras da mensagem do commit (inclusive em develop/homolog e em branches de feature recentes, antes de chegar na principal) ou hash: mostra o repositório, em quais branches base (develop, homolog, master...) já está, os commits, PRs e o card relacionado (#10)' },
+      { type: 'feat', description: 'Atalhos de teclado: / ou Ctrl+K abre a busca de cards e B abre a busca de branches e commits (reabrindo a última busca)' },
       { type: 'feat', description: 'Menções pendentes de resposta no cabeçalho: lista os cards em que você foi mencionado e ainda não comentou depois, com opção de marcar como respondida (#7)' },
       { type: 'fix', description: 'A retomada das atualizações após atingir o limite de requisições do GitHub não gera mais atualizações duplicadas' },
     ]
