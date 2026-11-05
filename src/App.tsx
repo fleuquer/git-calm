@@ -20,7 +20,7 @@ import { NotificationAlertModal, type AlertItem } from './components/Notificatio
 import { NotificationDetailModal } from './components/NotificationDetailModal';
 import { GitHubService } from './services/github';
 import type { ProjectColumn as ProjectColumnType, ViewTab, ProjectCard } from './types';
-import { RefreshCw, GitBranch, Settings as SettingsIcon, Filter, Package, FileText, SlidersHorizontal, Layers, Check, BarChart2, ExternalLink, ClipboardList, Rows3 } from 'lucide-react';
+import { RefreshCw, GitBranch, Settings as SettingsIcon, Filter, Package, FileText, SlidersHorizontal, Layers, Check, BarChart2, ExternalLink, ClipboardList, Rows3, Wrench } from 'lucide-react';
 import { CardSearchBar } from './components/CardSearchBar';
 import { DEFAULT_VIEWS } from './utils/defaultViews';
 import { getPeopleForView } from './utils/viewPeopleMapping';
@@ -37,6 +37,7 @@ import { loadCardHistory, recordCardView, clearCardHistory, sameIssue, type Card
 import { PendingMentionsButton } from './components/PendingMentionsButton';
 import { usePageVisible } from './hooks/usePageVisible';
 import { RefSearchModal } from './components/RefSearchModal';
+import { DevToolsView, DevToolsActions } from './components/DevToolsView';
 import type { CardSearchBarHandle } from './components/CardSearchBar';
 import { usePendingMentions } from './hooks/usePendingMentions';
 import { getReworkColumns } from './utils/reworkColumns';
@@ -155,7 +156,11 @@ function App() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
-  const [mainView, setMainView] = useState<'board' | 'dashboard'>('board');
+  const [mainView, setMainView] = useState<'board' | 'dashboard' | 'devtools'>('board');
+  // Mantém o iframe do devTools montado depois da primeira visita (não recarrega ao alternar)
+  const [devToolsVisited, setDevToolsVisited] = useState(false);
+  const [devToolsReloadKey, setDevToolsReloadKey] = useState(0);
+
 
   // Estado para menu de opções do header
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -1000,7 +1005,23 @@ function App() {
                   <BarChart2 size={13} />
                   Dados
                 </button>
+                <button
+                  onClick={() => { setMainView('devtools'); setDevToolsVisited(true); }}
+                  title="devTools: kanban pessoal de cards (projeto independente)"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    mainView === 'devtools'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                  }`}
+                >
+                  <Wrench size={13} />
+                  devTools
+                </button>
               </div>
+
+              {mainView === 'devtools' && (
+                <DevToolsActions onReload={() => setDevToolsReloadKey(k => k + 1)} />
+              )}
 
               <CardSearchBar
                 handleRef={cardSearchRef}
@@ -1224,13 +1245,15 @@ function App() {
           </div>
         )}
 
-        {error && (
+        {error && mainView !== 'devtools' && (
           <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-3 py-2 rounded-md mx-4 mt-3 text-sm shrink-0">
             {error}
           </div>
         )}
 
-        {loading && columns.length === 0 ? (
+        {devToolsVisited && <DevToolsView hidden={mainView !== 'devtools'} reloadKey={devToolsReloadKey} />}
+
+        {mainView === 'devtools' ? null : loading && columns.length === 0 ? (
           <div className="flex items-center justify-center flex-1">
             <div className="text-center">
               <RefreshCw className="animate-spin text-blue-600 dark:text-blue-400 mx-auto mb-3" size={32} />
@@ -1272,7 +1295,7 @@ function App() {
           </div>
         )}
 
-        {!loading && filteredColumns.length === 0 && !error && (
+        {mainView === 'board' && !loading && filteredColumns.length === 0 && !error && (
           <div className="flex items-center justify-center flex-1">
             <p className="text-gray-600 dark:text-gray-400 text-sm">Nenhum card encontrado para este filtro.</p>
           </div>

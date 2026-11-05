@@ -25,6 +25,7 @@ export const CHANGELOG: VersionEntry[] = [
       { type: 'feat', description: 'Busca de branches e commits em todos os repositórios da organização, por parte do nome da branch, palavras da mensagem do commit (inclusive em develop/homolog e em branches de feature recentes, antes de chegar na principal) ou hash: mostra o repositório, em quais branches base (develop, homolog, master...) já está, os commits, PRs e o card relacionado (#10)' },
       { type: 'feat', description: 'Atalhos de teclado: / ou Ctrl+K abre a busca de cards e B abre a busca de branches e commits (reabrindo a última busca)' },
       { type: 'feat', description: 'Menções pendentes de resposta no cabeçalho: lista os cards em que você foi mencionado e ainda não comentou depois, com opção de marcar como respondida (#7)' },
+      { type: 'feat', description: 'Nova área devTools ao lado de Board e Dados: exibe dentro do git-calm o devTools, kanban pessoal de cards, notas e ferramentas (projeto independente), com opção de abrir em nova aba' },
       { type: 'fix', description: 'A retomada das atualizações após atingir o limite de requisições do GitHub não gera mais atualizações duplicadas' },
     ]
   },
