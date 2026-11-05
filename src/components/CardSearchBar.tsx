@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Search, X, Hash, Archive, Loader2 } from 'lucide-react';
 import type { ProjectCard, ProjectColumn } from '../types';
+import type { CardHistoryEntry } from '../utils/cardHistory';
+import { CardHistoryList } from './CardHistoryList';
 
 interface SearchResult {
   card: ProjectCard;
@@ -12,9 +14,17 @@ interface Props {
   archivedCards?: ProjectCard[];
   onCardSelect: (card: ProjectCard) => void;
   onGitHubSearch?: (issueNumber: number) => Promise<ProjectCard | null>;
+  // Cards vistos recentemente, exibidos enquanto nada foi digitado
+  history?: CardHistoryEntry[];
+  onOpenHistory?: (entry: CardHistoryEntry) => void;
+  onClearHistory?: () => void;
+  findOnBoard?: (entry: CardHistoryEntry) => ProjectCard | undefined;
 }
 
-export function CardSearchBar({ columns, archivedCards = [], onCardSelect, onGitHubSearch }: Props) {
+export function CardSearchBar({
+  columns, archivedCards = [], onCardSelect, onGitHubSearch,
+  history, onOpenHistory, onClearHistory, findOnBoard,
+}: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -127,7 +137,7 @@ export function CardSearchBar({ columns, archivedCards = [], onCardSelect, onGit
         <button
           onClick={openSearch}
           className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-all text-xs font-medium"
-          title="Buscar card por número ou título"
+          title="Buscar card por número ou título (e ver os vistos recentemente)"
         >
           <Search size={14} />
           <span className="hidden sm:inline">Buscar</span>
@@ -153,6 +163,18 @@ export function CardSearchBar({ columns, archivedCards = [], onCardSelect, onGit
           >
             <X size={14} />
           </button>
+        </div>
+      )}
+
+      {/* Vistos recentemente (antes de digitar) */}
+      {isOpen && !query.trim() && history && onOpenHistory && (
+        <div className="absolute right-0 top-full mt-1 w-[26rem] max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+          <CardHistoryList
+            history={history}
+            onOpen={(entry) => { closeSearch(); onOpenHistory(entry); }}
+            onClear={() => { onClearHistory?.(); inputRef.current?.focus(); }}
+            findOnBoard={findOnBoard ?? (() => undefined)}
+          />
         </div>
       )}
 

@@ -50,6 +50,8 @@ export function useRealtimeUpdates({
   const previousColumnsRef = useRef<ProjectColumn[]>([]);
   const intervalRef = useRef<number | null>(null);
   const isCheckingRef = useRef(false);
+  const lastCheckRef = useRef(0); // Momento da última verificação (0 = ainda não iniciou)
+  const rateLimitTimeoutRef = useRef<number | null>(null);
 
   // Refs estáveis para callbacks — evita que o interval seja recriado a cada render
   const onChangesDetectedRef = useRef(onChangesDetected);
@@ -163,6 +165,7 @@ export function useRealtimeUpdates({
     }
 
     isCheckingRef.current = true;
+    lastCheckRef.current = Date.now();
 
     try {
       console.log('🔄 Buscando atualizações do GitHub...');
@@ -195,7 +198,9 @@ export function useRealtimeUpdates({
           clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
-        setTimeout(() => {
+        if (rateLimitTimeoutRef.current) clearTimeout(rateLimitTimeoutRef.current);
+        rateLimitTimeoutRef.current = window.setTimeout(() => {
+          rateLimitTimeoutRef.current = null;
           if (enabled && token && org && projectNumber) {
             console.log('🔄 Retomando polling após pausa de rate limit...');
             intervalRef.current = setInterval(() => checkForUpdatesRef.current(), intervalMs);
@@ -233,9 +238,20 @@ export function useRealtimeUpdates({
     }
 
     console.log(`⏱️ Polling iniciado (intervalo: ${intervalMs / 1000}s)`);
+    // Ao retomar (ex: aba voltou a ficar visível), verifica na hora se a última verificação
+    // já passou do intervalo. Na primeira vez o board acabou de ser carregado, então só agenda.
+    if (lastCheckRef.current === 0) {
+      lastCheckRef.current = Date.now();
+    } else if (Date.now() - lastCheckRef.current >= intervalMs) {
+      checkForUpdatesRef.current();
+    }
     intervalRef.current = setInterval(() => checkForUpdatesRef.current(), intervalMs);
 
     return () => {
+      if (rateLimitTimeoutRef.current) {
+        clearTimeout(rateLimitTimeoutRef.current);
+        rateLimitTimeoutRef.current = null;
+      }
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;

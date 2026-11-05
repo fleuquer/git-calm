@@ -86,6 +86,7 @@ export function useGithubNotifications({
   const seenIdsRef = useRef<Set<string>>(new Set());
   const intervalRef = useRef<number | null>(null);
   const isFetchingRef = useRef(false);
+  const lastFetchRef = useRef(0);
   // Flag para ignorar alertas na primeira carga (evita spam ao abrir o app)
   const isFirstFetchRef = useRef(true);
 
@@ -105,6 +106,7 @@ export function useGithubNotifications({
   const fetchNotifications = useCallback(async () => {
     if (isFetchingRef.current || !token || !enabled || !settings.enabled) return;
     isFetchingRef.current = true;
+    lastFetchRef.current = Date.now();
     setIsFetching(true);
 
     try {
@@ -265,7 +267,8 @@ export function useGithubNotifications({
       return;
     }
 
-    fetchNotifications();
+    // Ao (re)iniciar — ex: aba voltou a ficar visível — busca na hora só se já passou do intervalo
+    if (Date.now() - lastFetchRef.current >= settings.intervalMs) fetchNotifications();
     intervalRef.current = window.setInterval(fetchNotifications, settings.intervalMs);
 
     return () => {

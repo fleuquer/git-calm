@@ -12,6 +12,19 @@ const proxyFetch: typeof fetch = (url, options) => {
   return fetch(proxied, options);
 };
 
+export interface MentionedIssue {
+  number: number;
+  title: string;
+  url: string;
+  state: string;
+  repo: string;
+  body: string;
+  createdAt: string;
+  author: string;
+  authorAvatar: string;
+  comments: { body: string; createdAt: string; url: string; author: string; authorAvatar: string }[];
+}
+
 export class GitHubService {
   private octokit: Octokit;
 
@@ -290,6 +303,63 @@ export class GitHubService {
       console.error('Erro ao buscar issue por número:', err);
       return null;
     }
+  }
+
+  /**
+   * Issues da organização em que o usuário foi mencionado (descrição ou comentários), atualizadas
+   * nos últimos `sinceDays` dias, com os últimos comentários — base das menções pendentes (#7).
+   */
+  async getMentionedIssues(org: string, login: string, sinceDays = 90): Promise<MentionedIssue[]> {
+    const since = new Date(Date.now() - sinceDays * 86400000).toISOString().slice(0, 10);
+    const query = `
+      query($q: String!) {
+        search(query: $q, type: ISSUE, first: 50) {
+          nodes {
+            ... on Issue {
+              number
+              title
+              url
+              state
+              createdAt
+              body
+              author { login avatarUrl }
+              repository { name }
+              comments(last: 60) {
+                nodes {
+                  body
+                  createdAt
+                  url
+                  author { login avatarUrl }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+    const response: any = await this.octokit.graphql(query, {
+      q: `org:${org} is:issue mentions:${login} updated:>=${since} sort:updated-desc`,
+    });
+    return (response.search?.nodes ?? [])
+      .filter((n: any) => n?.number)
+      .map((n: any) => ({
+        number: n.number,
+        title: n.title,
+        url: n.url,
+        state: n.state,
+        repo: n.repository?.name ?? '',
+        body: n.body ?? '',
+        createdAt: n.createdAt,
+        author: n.author?.login ?? '',
+        authorAvatar: n.author?.avatarUrl ?? '',
+        comments: (n.comments?.nodes ?? []).map((c: any) => ({
+          body: c.body ?? '',
+          createdAt: c.createdAt,
+          url: c.url,
+          author: c.author?.login ?? '',
+          authorAvatar: c.author?.avatarUrl ?? '',
+        })),
+      }));
   }
 
   /** Busca uma issue pelo repositório e número (para abrir no app cards que não estão no board). */

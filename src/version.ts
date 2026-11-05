@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '0.1.4';
+export const CURRENT_VERSION = '0.1.5';
 export const VERSION_STORAGE_KEY = 'app_last_seen_version';
 
 export interface Change {
@@ -14,6 +14,18 @@ export interface VersionEntry {
 }
 
 export const CHANGELOG: VersionEntry[] = [
+  {
+    version: '0.1.5',
+    date: '2026-11-05',
+    label: '',
+    changes: [
+      { type: 'improvement', description: 'Cabeçalho mais enxuto: os cards vistos recentemente agora aparecem ao clicar na busca, antes de digitar, em vez de um botão próprio' },
+      { type: 'improvement', description: 'Troca de tema movida para o menu de opções do cabeçalho, com a lista de temas aberta no próprio menu' },
+      { type: 'improvement', description: 'Atualizações automáticas (board, notificações e menções) pausadas enquanto a aba do app está em segundo plano, retomando ao voltar para ela, para economizar requisições ao GitHub' },
+      { type: 'feat', description: 'Menções pendentes de resposta no cabeçalho: lista os cards em que você foi mencionado e ainda não comentou depois, com opção de marcar como respondida (#7)' },
+      { type: 'fix', description: 'A retomada das atualizações após atingir o limite de requisições do GitHub não gera mais atualizações duplicadas' },
+    ]
+  },
   {
     version: '0.1.4',
     date: '2026-11-04',

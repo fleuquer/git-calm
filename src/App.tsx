@@ -8,7 +8,7 @@ import { FilterPanel } from './components/FilterPanel';
 import { ActivityNotifications } from './components/ActivityNotifications';
 import { ActivityLogButton, useActivityLog, DEFAULT_ACTIVITY_SETTINGS } from './components/ActivityLogButton';
 import type { ActivityMonitorSettings } from './components/ActivityLogButton';
-import { ThemeSwitcher } from './components/ThemeSwitcher';
+import { ThemeMenuItem } from './components/ThemeMenuItem';
 import { ReleaseModal } from './components/ReleaseModal';
 import { DailyReportModal } from './components/DailyReportModal';
 import { WeeklyPlanningModal } from './components/WeeklyPlanningModal';
@@ -34,7 +34,9 @@ import { DEFAULT_CARD_SORT, type CardSortOption } from './utils/cardSort';
 import { setProjectSingleSelectFields } from './utils/prioritySettings';
 import type { IssueLinkRef } from './utils/issueLinks';
 import { loadCardHistory, recordCardView, clearCardHistory, sameIssue, type CardHistoryEntry } from './utils/cardHistory';
-import { CardHistoryButton } from './components/CardHistoryButton';
+import { PendingMentionsButton } from './components/PendingMentionsButton';
+import { usePageVisible } from './hooks/usePageVisible';
+import { usePendingMentions } from './hooks/usePendingMentions';
 import { getReworkColumns } from './utils/reworkColumns';
 import { recordReworkVisit } from './utils/reworkTracking';
 import {
@@ -45,6 +47,8 @@ import {
 } from './utils/preferenceStorage';
 
 function App() {
+  // Atualizações automáticas ficam pausadas enquanto a aba está em segundo plano
+  const pageVisible = usePageVisible();
   // Inicializar tema do localStorage ANTES de qualquer renderização
   const [selectedTheme, setSelectedTheme] = useState<string>(() => {
     // Temas antigos (removidos) são migrados para o equivalente atual
@@ -90,6 +94,9 @@ function App() {
   // Trilha de navegação entre cards por links (card 1 → link → card 2...): permite voltar
   const [cardTrail, setCardTrail] = useState<ProjectCard[]>([]);
   const [openingIssueLink, setOpeningIssueLink] = useState<IssueLinkRef | null>(null);
+  // Menções pendentes de resposta (issue #7)
+  const pendingMentions = usePendingMentions(token, org, user?.login);
+
   // Histórico de cards visualizados (issue #6)
   const [cardHistory, setCardHistory] = useState<CardHistoryEntry[]>(loadCardHistory);
 
@@ -235,7 +242,7 @@ function App() {
   const { notifications, unreadCount, isFetching: isNotifFetching, lastError: notifError, fetchNotifications, markAsRead, markAllAsRead } =
     useGithubNotifications({
       token,
-      enabled: !!token,
+      enabled: !!token && pageVisible,
       settings: notificationSettings,
       currentUserLogin: user?.login,
       columns,
@@ -487,7 +494,7 @@ function App() {
 
   // Hook de polling para atualizações em tempo real
   const { checkNow, isChecking } = useRealtimeUpdates({
-    enabled: realtimeEnabled && !!token && !!org && !!projectNumber,
+    enabled: realtimeEnabled && pageVisible && !!token && !!org && !!projectNumber,
     token,
     org,
     projectNumber,
@@ -798,8 +805,8 @@ function App() {
   const findCardOnBoard = (ref: { number: number; repo?: string }) =>
     [...columns.flatMap(col => col.cards), ...archivedCards].find(c => sameIssue(c, ref));
 
-  // Reabre um card do histórico: usa a versão do board; se não estiver lá, busca na API
-  const handleOpenFromHistory = async (entry: CardHistoryEntry) => {
+  // Abre um card por repositório + número: usa a versão do board; se não estiver lá, busca na API
+  const handleOpenFromHistory = async (entry: { number: number; repo?: string; url: string }) => {
     const known = findCardOnBoard(entry);
     if (known) {
       handleCardClick(known);
@@ -963,6 +970,20 @@ function App() {
                 archivedCards={archivedCards}
                 onCardSelect={handleCardClick}
                 onGitHubSearch={handleGitHubSearch}
+                history={cardHistory}
+                onOpenHistory={handleOpenFromHistory}
+                onClearHistory={() => setCardHistory(clearCardHistory())}
+                findOnBoard={findCardOnBoard}
+              />
+
+              {/* Menções pendentes de resposta */}
+              <PendingMentionsButton
+                pending={pendingMentions.pending}
+                loading={pendingMentions.loading}
+                error={pendingMentions.error}
+                onRefresh={pendingMentions.refresh}
+                onOpen={handleOpenFromHistory}
+                onMarkAnswered={pendingMentions.markAnswered}
               />
 
               {/* Sino de notificações */}
@@ -989,16 +1010,6 @@ function App() {
                 onClearAll={clearActivityLog}
               />
 
-              {/* Cards visualizados recentemente */}
-              <CardHistoryButton
-                history={cardHistory}
-                onOpen={handleOpenFromHistory}
-                onClear={() => setCardHistory(clearCardHistory())}
-                findOnBoard={findCardOnBoard}
-              />
-
-              <ThemeSwitcher selectedTheme={selectedTheme} onThemeChange={handleThemeChange} />
-
               {/* Menu de opções */}
               <div ref={menuRef} className="relative">
                 <button
@@ -1020,7 +1031,7 @@ function App() {
                 )}
 
                 {isMenuOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 py-1 overflow-hidden">
+                  <div className="absolute right-0 top-full mt-1 w-56 max-h-[calc(100vh-4.5rem)] overflow-y-auto bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 py-1">
 
                     {/* Seção: Visualização */}
                     <div className="px-3 py-1.5">
@@ -1065,6 +1076,8 @@ function App() {
                       <span>Layout em lista</span>
                       {listLayout && <Check size={12} className="ml-auto text-blue-500" />}
                     </button>
+
+                    <ThemeMenuItem selectedTheme={selectedTheme} onThemeChange={handleThemeChange} />
 
                     <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
 
@@ -1295,6 +1308,7 @@ function App() {
           setIsCardModalOpen(false);
           setSelectedCard(null);
           setCardTrail([]);
+          pendingMentions.refresh(); // pode ter respondido uma menção no card
         }}
         token={token}
         org={org}
