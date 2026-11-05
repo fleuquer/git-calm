@@ -1306,6 +1306,7 @@ function App() {
         trail={cardTrail}
         onNavigateTrail={handleNavigateTrail}
         openingIssueLink={openingIssueLink}
+        currentUser={user ? { login: user.login, avatarUrl: user.avatar_url } : undefined}
       />
 
       {/* Daily Report Modal */}

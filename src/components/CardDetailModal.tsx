@@ -1,12 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, ExternalLink, Calendar, Clock, User, Plus, Send, Trash2, GitBranch, GitCommit, Link as LinkIcon, ArrowUpDown, ChevronDown, ChevronUp, CheckCircle, FileText, AlertCircle, MessageSquare, Clipboard, Eye, ArrowRight, Maximize2, Minimize2, Bold, Italic, Strikethrough, List, ListOrdered, Code, Code2, Quote, Minus, Link2 } from 'lucide-react';
-import type { ProjectCard, ProjectColumn } from '../types';
+import type { Assignee, ProjectCard, ProjectColumn } from '../types';
 import type { CommentTemplate } from '../types/commentTemplates';
 import { GitHubService } from '../services/github';
 import { CommentTemplateService } from '../services/commentTemplateService';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import type { IssueLinkRef } from '../utils/issueLinks';
 import { CardTrail } from './CardTrail';
+import { useMentionAutocomplete, loadOrgMembers, type MentionUser } from './MentionAutocomplete';
+import { AssigneePicker } from './AssigneePicker';
 import { convertGithubEmojis } from '../utils/emojiConverter';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -28,6 +30,8 @@ interface Props {
   trail?: ProjectCard[];
   onNavigateTrail?: (index: number) => void;
   openingIssueLink?: IssueLinkRef | null;
+  // Usuário logado (para "atribuir a mim")
+  currentUser?: { login: string; avatarUrl?: string };
 }
 
 interface IssueDetail {
@@ -92,14 +96,15 @@ interface MilestoneInfo {
   url: string;
 }
 
-export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token, org, onUpdate, currentViewId, columns, onMoveCard, onOpenIssueLink, trail = [], onNavigateTrail, openingIssueLink }) => {
+export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token, org, onUpdate, currentViewId, columns, onMoveCard, onOpenIssueLink, trail = [], onNavigateTrail, openingIssueLink, currentUser }) => {
   const [details, setDetails] = useState<IssueDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'description' | 'timeline'>('description');
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showAssigneeInput, setShowAssigneeInput] = useState(false);
-  const [newAssignee, setNewAssignee] = useState('');
+  // Responsáveis exibidos após adicionar/remover no modal (o card recebido só atualiza ao reabrir)
+  const [assigneesOverride, setAssigneesOverride] = useState<Assignee[] | null>(null);
   const [showLabelInput, setShowLabelInput] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [showPreview, setShowPreview] = useState(false);
@@ -134,6 +139,45 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
     }
     return Array.from(seen.values()).sort((a, b) => b.count - a.count);
   }, [details?.comments, details?.events]);
+
+  // ── Autocomplete de menções (@) no comentário — issue #8 ──
+  // Ordem: pessoas do card (responsáveis e participantes) → pessoas do board → membros da org
+  const [orgMembers, setOrgMembers] = useState<MentionUser[]>([]);
+  const mentionUsers = useMemo<MentionUser[]>(() => {
+    const seen = new Set<string>();
+    const result: MentionUser[] = [];
+    const add = (login: string | undefined, avatarUrl: string | undefined, hint?: string) => {
+      if (!login || seen.has(login.toLowerCase())) return;
+      seen.add(login.toLowerCase());
+      result.push({ login, avatarUrl, hint });
+    };
+    (assigneesOverride ?? card?.assignees ?? []).forEach(a => add(a.login, a.avatarUrl, 'neste card'));
+    uniqueParticipants.forEach(p => add(p.login, p.avatar, 'neste card'));
+    columns?.forEach(col => col.cards.forEach(c => c.assignees.forEach(a => add(a.login, a.avatarUrl, 'no board'))));
+    orgMembers.forEach(m => add(m.login, m.avatarUrl));
+    return result;
+  }, [assigneesOverride, card?.assignees, uniqueParticipants, columns, orgMembers]);
+
+  // Para responsável, o próprio usuário vem primeiro
+  const assigneeCandidates = useMemo<MentionUser[]>(() => {
+    if (!currentUser) return mentionUsers;
+    const me = currentUser.login.toLowerCase();
+    const mine = mentionUsers.find(u => u.login.toLowerCase() === me);
+    return [
+      { login: currentUser.login, avatarUrl: currentUser.avatarUrl ?? mine?.avatarUrl, hint: 'você' },
+      ...mentionUsers.filter(u => u.login.toLowerCase() !== me),
+    ];
+  }, [mentionUsers, currentUser]);
+
+  const loadMembersOnce = () => { if (token && org) loadOrgMembers(token, org).then(setOrgMembers); };
+
+  const mention = useMentionAutocomplete({
+    textareaRef,
+    value: newComment,
+    onChange: setNewComment,
+    users: mentionUsers,
+    onActivate: loadMembersOnce,
+  });
 
   const applyFormat = (type: string) => {
     const ta = textareaRef.current;
@@ -347,6 +391,8 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
       setCommentAuthorFilter(null);
       // Limpar dados quando fechar
       setDetails(null);
+      setAssigneesOverride(null);
+      setShowAssigneeInput(false);
       setActiveTab('description');
       setActiveSidebarTab('info');
       setBranches([]);
@@ -565,6 +611,42 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
     setNewComment(template);
     setShowPreview(false); // Mostra no editor para permitir edição
     setShowTemplateForm(false); // Oculta o formulário após gerar
+  };
+
+  const assignees = assigneesOverride ?? card.assignees;
+
+  const handleAddAssignee = async (login: string) => {
+    if (!card.repo) return;
+    try {
+      const service = new GitHubService(token);
+      const updated = await service.addAssignee(org, card.repo, card.number, login);
+      // A API devolve a issue atualizada; usa a lista dela (já com avatar), senão adiciona localmente
+      const fromApi: Assignee[] | undefined = updated?.assignees?.map(a => ({ login: a.login, avatarUrl: a.avatar_url }));
+      const added = fromApi?.some(a => a.login.toLowerCase() === login.toLowerCase());
+      if (fromApi && !added) {
+        alert(`Não foi possível atribuir "${login}". Verifique se o usuário tem acesso ao repositório ${card.repo}.`);
+        return;
+      }
+      setAssigneesOverride(fromApi ?? [...assignees, { login, avatarUrl: assigneeCandidates.find(u => u.login === login)?.avatarUrl ?? '' }]);
+      setShowAssigneeInput(false);
+      onUpdate?.();
+    } catch (error) {
+      console.error('Erro ao adicionar responsável:', error);
+      alert('Erro ao adicionar responsável. Verifique se o username está correto.');
+    }
+  };
+
+  const handleRemoveAssignee = async (login: string) => {
+    if (!card.repo) return;
+    try {
+      const service = new GitHubService(token);
+      await service.removeAssignee(org, card.repo, card.number, login);
+      setAssigneesOverride(assignees.filter(a => a.login !== login));
+      onUpdate?.();
+    } catch (error) {
+      console.error('Erro ao remover responsável:', error);
+      alert('Erro ao remover responsável');
+    }
   };
 
   const daysUntilDue = card.dueDate ? getDaysUntilDue(card.dueDate) : null;
@@ -1194,13 +1276,16 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                             )}
 
                             {/* Conteúdo do editor */}
-                            <div className="bg-white dark:bg-gray-800">
+                            <div className="relative bg-white dark:bg-gray-800">
                               {!showPreview ? (
                                 <textarea
                                   ref={textareaRef}
                                   value={newComment}
-                                  onChange={(e) => setNewComment(e.target.value)}
+                                  onChange={(e) => { setNewComment(e.target.value); mention.refresh(); }}
+                                  onClick={mention.refresh}
+                                  onKeyUp={(e) => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') mention.refresh(); }}
                                   onKeyDown={(e) => {
+                                    if (mention.handleKeyDown(e)) return;
                                     if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); applyFormat('bold'); }
                                     if ((e.ctrlKey || e.metaKey) && e.key === 'i') { e.preventDefault(); applyFormat('italic'); }
                                   }}
@@ -1208,7 +1293,9 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                                   className={`w-full px-3 py-2 bg-transparent text-gray-900 dark:text-gray-100 text-sm resize-y focus:outline-none ${commentEditorExpanded ? 'min-h-[60vh]' : 'min-h-[300px]'}`}
                                   rows={5}
                                 />
-                              ) : (
+                              ) : null}
+                              {!showPreview && mention.popup}
+                              {showPreview && (
                                 <div className={`px-3 py-2 ${commentEditorExpanded ? 'min-h-[60vh]' : 'min-h-[300px]'}`}>
                                   {newComment ? (
                                     <div className="markdown-body text-sm text-gray-700 dark:text-gray-300">
@@ -1549,9 +1636,9 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                       </button>
                     </div>
 
-                    {card.assignees.length > 0 ? (
+                    {assignees.length > 0 ? (
                       <div className="space-y-2">
-                        {card.assignees.map((assignee) => (
+                        {assignees.map((assignee) => (
                           <div key={assignee.login} className="flex items-center justify-between group">
                             <div className="flex items-center gap-2">
                               <img
@@ -1564,18 +1651,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                               </span>
                             </div>
                             <button
-                              onClick={async () => {
-                                if (!card.repo) return;
-                                try {
-                                  const service = new GitHubService(token);
-                                  await service.removeAssignee(org, card.repo, card.number, assignee.login);
-                                  await loadDetails();
-                                  onUpdate?.();
-                                } catch (error) {
-                                  console.error('Erro ao remover responsável:', error);
-                                  alert('Erro ao remover responsável');
-                                }
-                              }}
+                              onClick={() => handleRemoveAssignee(assignee.login)}
                               className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-all"
                               title="Remover responsável"
                             >
@@ -1585,41 +1661,30 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 italic">Nenhum responsável</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <span className="italic">Nenhum responsável</span>
+                        {currentUser && card.repo && (
+                          <>
+                            {' — '}
+                            <button
+                              onClick={() => handleAddAssignee(currentUser.login)}
+                              className="text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                              atribuir a mim
+                            </button>
+                          </>
+                        )}
+                      </p>
                     )}
 
-                    {showAssigneeInput && (
-                      <div className="mt-2">
-                        <input
-                          type="text"
-                          value={newAssignee}
-                          onChange={(e) => setNewAssignee(e.target.value)}
-                          placeholder="Username do GitHub"
-                          className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                          onKeyDown={async (e) => {
-                            if (e.key === 'Enter' && newAssignee.trim() && card.repo) {
-                              try {
-                                const service = new GitHubService(token);
-                                await service.addAssignee(org, card.repo, card.number, newAssignee.trim());
-                                setNewAssignee('');
-                                setShowAssigneeInput(false);
-                                await loadDetails();
-                                onUpdate?.();
-                              } catch (error) {
-                                console.error('Erro ao adicionar responsável:', error);
-                                alert('Erro ao adicionar responsável. Verifique se o username está correto.');
-                              }
-                            } else if (e.key === 'Escape') {
-                              setNewAssignee('');
-                              setShowAssigneeInput(false);
-                            }
-                          }}
-                          autoFocus
-                        />
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Enter para adicionar
-                        </p>
-                      </div>
+                    {showAssigneeInput && card.repo && (
+                      <AssigneePicker
+                        users={assigneeCandidates}
+                        exclude={assignees.map(a => a.login)}
+                        onSelect={handleAddAssignee}
+                        onCancel={() => setShowAssigneeInput(false)}
+                        onActivate={loadMembersOnce}
+                      />
                     )}
                   </div>
 
