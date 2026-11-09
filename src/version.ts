@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '0.1.5';
+export const CURRENT_VERSION = '0.1.6';
 export const VERSION_STORAGE_KEY = 'app_last_seen_version';
 
 export interface Change {
@@ -14,6 +14,14 @@ export interface VersionEntry {
 }
 
 export const CHANGELOG: VersionEntry[] = [
+  {
+    version: '0.1.6',
+    date: '2026-11-09',
+    label: '',
+    changes: [
+      { type: 'improvement', description: 'Ações da área devTools (sobre, recarregar e abrir em nova aba) agora ficam flutuando sobre o próprio devTools, sem alterar o cabeçalho ao trocar de aba' },
+    ]
+  },
   {
     version: '0.1.5',
     date: '2026-11-05',

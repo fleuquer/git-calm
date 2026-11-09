@@ -5,17 +5,16 @@ import { ExternalLink, RefreshCw, Info } from 'lucide-react';
  * Área "devTools": projeto independente (kanban pessoal de cards), exibido
  * dentro do git-calm via iframe. O app continua sendo do autor — aqui só
  * mostramos, sem alterar nada dele. Não há barra própria: o devTools já tem
- * o seu menu; as ações daqui ficam no cabeçalho do git-calm (DevToolsActions).
+ * o seu menu; as ações daqui ficam numa pílula flutuante sobre ele.
  */
 export const DEVTOOLS_URL = 'https://dev-tools-cards.vercel.app';
 
 interface DevToolsViewProps {
   hidden?: boolean;
-  /** Muda para recarregar o iframe */
-  reloadKey: number;
 }
 
-export function DevToolsView({ hidden, reloadKey }: DevToolsViewProps) {
+export function DevToolsView({ hidden }: DevToolsViewProps) {
+  const [reloadKey, setReloadKey] = useState(0);
   const [loadedKey, setLoadedKey] = useState<number | null>(null);
   const loading = loadedKey !== reloadKey;
 
@@ -34,14 +33,15 @@ export function DevToolsView({ hidden, reloadKey }: DevToolsViewProps) {
         allow="clipboard-read; clipboard-write"
         className="w-full h-full border-0 bg-white"
       />
+      <DevToolsActions onReload={() => setReloadKey(k => k + 1)} />
     </div>
   );
 }
 
-const iconButton = 'p-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors';
+const iconButton = 'p-1.5 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors';
 
-/** Ações da área devTools, exibidas no cabeçalho do git-calm quando ela está ativa. */
-export function DevToolsActions({ onReload }: { onReload: () => void }) {
+/** Ações da área devTools, numa pílula flutuante no canto inferior direito. */
+function DevToolsActions({ onReload }: { onReload: () => void }) {
   const [showInfo, setShowInfo] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -61,7 +61,12 @@ export function DevToolsActions({ onReload }: { onReload: () => void }) {
   }, [showInfo]);
 
   return (
-    <div ref={ref} className="relative flex items-center gap-0.5">
+    <div
+      ref={ref}
+      className={`absolute bottom-3 right-3 z-10 flex items-center gap-0.5 p-0.5 rounded-full border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 backdrop-blur shadow-md transition-opacity ${
+        showInfo ? 'opacity-100' : 'opacity-60 hover:opacity-100'
+      }`}
+    >
       <button
         onClick={() => setShowInfo(v => !v)}
         title="Sobre o devTools"
@@ -83,7 +88,7 @@ export function DevToolsActions({ onReload }: { onReload: () => void }) {
       </a>
 
       {showInfo && (
-        <div className="absolute right-0 top-full mt-2 w-80 z-50 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg p-3 text-xs text-gray-600 dark:text-gray-300 space-y-2">
+        <div className="absolute right-0 bottom-full mb-2 w-80 z-50 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg p-3 text-xs text-gray-600 dark:text-gray-300 space-y-2">
           <p className="font-semibold text-gray-800 dark:text-gray-100">devTools · projeto independente</p>
           <p>
             Kanban pessoal de cards, notas e ferramentas, mantido pelo seu autor e exibido aqui dentro do git-calm.

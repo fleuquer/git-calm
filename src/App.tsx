@@ -37,7 +37,7 @@ import { loadCardHistory, recordCardView, clearCardHistory, sameIssue, type Card
 import { PendingMentionsButton } from './components/PendingMentionsButton';
 import { usePageVisible } from './hooks/usePageVisible';
 import { RefSearchModal } from './components/RefSearchModal';
-import { DevToolsView, DevToolsActions } from './components/DevToolsView';
+import { DevToolsView } from './components/DevToolsView';
 import type { CardSearchBarHandle } from './components/CardSearchBar';
 import { usePendingMentions } from './hooks/usePendingMentions';
 import { getReworkColumns } from './utils/reworkColumns';
@@ -159,7 +159,6 @@ function App() {
   const [mainView, setMainView] = useState<'board' | 'dashboard' | 'devtools'>('board');
   // Mantém o iframe do devTools montado depois da primeira visita (não recarrega ao alternar)
   const [devToolsVisited, setDevToolsVisited] = useState(false);
-  const [devToolsReloadKey, setDevToolsReloadKey] = useState(0);
 
 
   // Estado para menu de opções do header
@@ -1019,10 +1018,6 @@ function App() {
                 </button>
               </div>
 
-              {mainView === 'devtools' && (
-                <DevToolsActions onReload={() => setDevToolsReloadKey(k => k + 1)} />
-              )}
-
               <CardSearchBar
                 handleRef={cardSearchRef}
                 columns={columns}
@@ -1251,7 +1246,7 @@ function App() {
           </div>
         )}
 
-        {devToolsVisited && <DevToolsView hidden={mainView !== 'devtools'} reloadKey={devToolsReloadKey} />}
+        {devToolsVisited && <DevToolsView hidden={mainView !== 'devtools'} />}
 
         {mainView === 'devtools' ? null : loading && columns.length === 0 ? (
           <div className="flex items-center justify-center flex-1">
