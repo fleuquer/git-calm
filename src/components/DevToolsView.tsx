@@ -8,15 +8,57 @@ import { ExternalLink, RefreshCw, Info } from 'lucide-react';
  * o seu menu; as ações daqui ficam numa pílula flutuante sobre ele.
  */
 export const DEVTOOLS_URL = 'https://dev-tools-cards.vercel.app';
+const DEVTOOLS_ORIGIN = new URL(DEVTOOLS_URL).origin;
+
+/**
+ * Protocolo de integração (postMessage entre o git-calm e o iframe do devTools):
+ *  - devTools → git-calm: { type: 'devtools:ready' } quando estiver pronto para receber dados
+ *  - git-calm → devTools: { type: 'gitcalm:token', version: 1, token } em resposta,
+ *    e de novo sempre que o token mudar
+ * Os dois lados conferem a origem da mensagem; o token só é enviado para DEVTOOLS_ORIGIN.
+ */
+const MSG_READY = 'devtools:ready';
+const MSG_TOKEN = 'gitcalm:token';
 
 interface DevToolsViewProps {
   hidden?: boolean;
+  /** Token do GitHub já configurado no git-calm, compartilhado com o devTools */
+  token: string;
 }
 
-export function DevToolsView({ hidden }: DevToolsViewProps) {
+export function DevToolsView({ hidden, token }: DevToolsViewProps) {
   const [reloadKey, setReloadKey] = useState(0);
   const [loadedKey, setLoadedKey] = useState<number | null>(null);
   const loading = loadedKey !== reloadKey;
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const readyRef = useRef(false);
+  const tokenRef = useRef(token);
+
+  const sendToken = () => {
+    frameRef.current?.contentWindow?.postMessage(
+      { type: MSG_TOKEN, version: 1, token: tokenRef.current },
+      DEVTOOLS_ORIGIN,
+    );
+  };
+
+  // Responde ao "pronto" do devTools com o token
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== DEVTOOLS_ORIGIN) return;
+      if (e.source !== frameRef.current?.contentWindow) return;
+      if (e.data?.type !== MSG_READY) return;
+      readyRef.current = true;
+      sendToken();
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  // Token trocado no git-calm: repassa se o devTools já estiver pronto
+  useEffect(() => {
+    tokenRef.current = token;
+    if (readyRef.current) sendToken();
+  }, [token]);
 
   return (
     <div className={`relative flex-1 min-h-0 ${hidden ? 'hidden' : ''}`}>
@@ -26,14 +68,15 @@ export function DevToolsView({ hidden }: DevToolsViewProps) {
         </div>
       )}
       <iframe
+        ref={frameRef}
         key={reloadKey}
-        src={`${DEVTOOLS_URL}/cards`}
+        src={`${DEVTOOLS_URL}/`}
         title="devTools"
         onLoad={() => setLoadedKey(reloadKey)}
         allow="clipboard-read; clipboard-write"
         className="w-full h-full border-0 bg-white"
       />
-      <DevToolsActions onReload={() => setReloadKey(k => k + 1)} />
+      <DevToolsActions onReload={() => { readyRef.current = false; setReloadKey(k => k + 1); }} />
     </div>
   );
 }
@@ -94,7 +137,10 @@ function DevToolsActions({ onReload }: { onReload: () => void }) {
             Kanban pessoal de cards, notas e ferramentas, mantido pelo seu autor e exibido aqui dentro do git-calm.
           </p>
           <p>
-            O navegador guarda os dados dele (cards, notas, token) separados quando aberto aqui dentro: o que você
+            O token do GitHub configurado no git-calm é compartilhado com ele automaticamente.
+          </p>
+          <p>
+            O navegador guarda os demais dados dele (cards, notas) separados quando aberto aqui dentro: o que você
             salvar aqui não aparece ao abrir o site direto, e vice-versa. Para levar dados de um lado para o outro,
             use o backup (exportar/importar) do próprio devTools.
           </p>

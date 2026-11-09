@@ -20,6 +20,8 @@ export const CHANGELOG: VersionEntry[] = [
     label: '',
     changes: [
       { type: 'improvement', description: 'Ações da área devTools (sobre, recarregar e abrir em nova aba) agora ficam flutuando sobre o próprio devTools, sem alterar o cabeçalho ao trocar de aba' },
+      { type: 'improvement', description: 'A área devTools agora abre na tela Início dele' },
+      { type: 'feat', description: 'Token do GitHub compartilhado com o devTools: o token configurado no git-calm é enviado automaticamente para ele, sem precisar cadastrar de novo (requer a versão do devTools com suporte à integração)' },
     ]
   },
   {

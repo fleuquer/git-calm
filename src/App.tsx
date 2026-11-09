@@ -1246,7 +1246,7 @@ function App() {
           </div>
         )}
 
-        {devToolsVisited && <DevToolsView hidden={mainView !== 'devtools'} />}
+        {devToolsVisited && <DevToolsView hidden={mainView !== 'devtools'} token={token} />}
 
         {mainView === 'devtools' ? null : loading && columns.length === 0 ? (
           <div className="flex items-center justify-center flex-1">
