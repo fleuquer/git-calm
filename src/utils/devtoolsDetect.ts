@@ -10,8 +10,13 @@ export interface ToolSuggestion {
   label: string;
   /** Id da ferramenta na tela do devTools (/ferramentas/:id), para "Abrir no devTools" */
   toolId: string;
-  /** Reconhecida pelo formato (já calcula ao selecionar) ou genérica (em "Mais…" ou Alt+T) */
+  /** Reconhecida pelo formato (já calcula ao selecionar e vem primeiro) ou genérica (vale para qualquer texto) */
   detected: boolean;
+  /**
+   * Ferramenta que o devTools ainda não expõe para cálculo: só abre a tela dela no modal,
+   * com o texto copiado
+   */
+  openOnly?: boolean;
 }
 
 const digits = (s: string) => s.replace(/\D/g, '');
@@ -38,10 +43,16 @@ export function suggestTools(raw: string): ToolSuggestion[] {
   }
   if (/^[\d.\s]+$/.test(text) && [44, 47, 48].includes(d.length)) add('lerBoleto', [text], 'Boleto / guia', 'boleto');
 
-  if (/^(\S+\s+){4,5}\S+$/.test(text) && /^[\d*/,\-?LW#A-Z\s]+$/i.test(text) && /[*\d]/.test(text)) {
+  // Cron: uma linha, 5 ou 6 campos, cada um com números/curingas ou nome curto (MON, JAN-MAR)
+  const cronParts = text.split(/ +/);
+  if (!/\n|\t/.test(text) && cronParts.length >= 5 && cronParts.length <= 6 && /[*\d]/.test(text)
+    && cronParts.every(p => /^[\d*/,\-?LW#]+$/i.test(p) || /^[A-Z]{3}([-,][A-Z]{3})*$/i.test(p))) {
     add('cron', [text], 'Cron', 'cron');
   }
   if (/^\s*(select|insert|update|delete|with|create|alter)\b/i.test(text)) add('formatarSql', [text], 'Formatar SQL', 'sqlfmt');
+  // Grid colado do banco/planilha (colunas separadas por tab)
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length >= 2 && lines.every(l => l.includes('\t'))) add('tabela', [text, 'markdown'], 'Grid → tabela', 'grade');
   if (/^<[\s\S]*>$/.test(text) && !/^<[^>]*>$/.test(text)) add('formatarXml', [text], 'Formatar XML', 'formatador');
 
   // Base64: exige "cara" de Base64 (padding ou mistura de maiúsculas, minúsculas e dígitos),
@@ -52,6 +63,22 @@ export function suggestTools(raw: string): ToolSuggestion[] {
   }
   if (/Ã[\u0080-¿]|Ã[§£©¡ª³µº¢]/.test(text)) add('corrigirEncoding', [text], 'Corrigir acentuação', 'encoding');
 
+  // Ferramentas só de tela (abrem no modal)
+  const screens: ToolSuggestion[] = [];
+  const screen = (label: string, toolId: string, detected: boolean) => {
+    if (!screens.some(t => t.toolId === toolId)) screens.push({ fn: '', args: [text], label, toolId, detected, openOnly: true });
+  };
+  if (/^\s*select\b/i.test(text)) screen('SELECT → UPDATE/DELETE', 'selectupd', true);
+  if (lines.length >= 2 && lines.every(l => l.includes('\t'))) screen('Gerar DDL', 'ddl', true);
+  const looksLog = lines.length >= 2 && /PHP (Fatal|Warning|Notice|Parse|Deprecated)|Stack trace:|Traceback|\bERROR:|\[(error|warn|crit)[^\]]*\]|Exception\b|\.(ERROR|WARNING|CRITICAL):/i.test(text);
+  if (looksLog) screen('Leitor de log', 'log', true);
+  const personal = !single && /\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|[\w.+-]+@[\w-]+\.[\w.]+|\(\d{2}\)\s?\d{4,5}-\d{4}/.test(text);
+  if (personal) screen('Extrair do texto', 'extrair', true);
+  if (personal || looksLog) screen('Anonimizar (LGPD)', 'anonimizar', true);
+  if (/[\u00A0\u200B-\u200D\u2060\uFEFF]/.test(text)) screen('Limpar texto colado', 'limpeza', true);
+  if (/^\s*(array\s*\(|Array\s*\(|\[\s*['"][^'"]+['"]\s*=>)|^\s*\{\s*:?\w+\s*=>/i.test(text)) screen('Array → JSON', 'arrayjson', true);
+  if (/&([a-z]+|#\d+);/i.test(text)) screen('Entidades HTML', 'entidades', true);
+
   // Genéricas: valem para qualquer texto
   const generic = (fn: string, args: unknown[], label: string, toolId: string) =>
     found.push({ fn, args, label, toolId, detected: false });
@@ -59,5 +86,11 @@ export function suggestTools(raw: string): ToolSuggestion[] {
   generic('semAcento', [text], 'Sem acentos', 'caixa');
   generic('hash', [text], 'Hash', 'hash');
   if (!found.some(f => f.fn === 'base64')) generic('base64', [text, 'encode'], 'Texto → Base64', 'base64');
-  return found;
+  if (!single) {
+    screen('Anonimizar (LGPD)', 'anonimizar', false);
+    screen('Extrair do texto', 'extrair', false);
+    screen('Limpar texto colado', 'limpeza', false);
+  }
+  // reconhecidas primeiro (as que calculam na frente das que só abrem a tela), depois as genéricas
+  return [...found.filter(t => t.detected), ...screens.filter(t => t.detected), ...found.filter(t => !t.detected), ...screens.filter(t => !t.detected)];
 }

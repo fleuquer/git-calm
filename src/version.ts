@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '0.1.6';
+export const CURRENT_VERSION = '0.1.7';
 export const VERSION_STORAGE_KEY = 'app_last_seen_version';
 
 export interface Change {
@@ -15,18 +15,33 @@ export interface VersionEntry {
 
 export const CHANGELOG: VersionEntry[] = [
   {
+    version: '0.1.7',
+    date: '2026-11-10',
+    label: '',
+    changes: [
+      { type: 'feat', description: 'A caixinha do texto selecionado sugere as ferramentas novas do devTools 1.0.23 que combinam com o texto (SELECT → UPDATE/DELETE, Gerar DDL, Leitor de log, Anonimizar, Extrair do texto, Limpar texto colado, Array → JSON, Entidades HTML), abrindo a tela delas no modal com o texto copiado' },
+      { type: 'feat', description: 'Grid colado do banco ou da planilha (colunas separadas por tab) vira tabela em Markdown direto na caixinha' },
+      { type: 'improvement', description: 'Todas as ferramentas do devTools já aparecem abertas na caixinha do texto selecionado, sem precisar de "Mais…": as reconhecidas pelo formato vêm primeiro, em destaque' },
+      { type: 'improvement', description: 'A ferramenta aberta no modal vem preenchida com o texto selecionado (quando o devTools permitir); até lá, o texto selecionado fica no topo do modal com um botão para copiar' },
+      { type: 'feat', description: 'Texto de imagem: ao passar o mouse numa imagem do card aparece o botão "Texto da imagem", que manda a imagem para a leitura de texto (OCR) do devTools; por enquanto a imagem vai copiada e a tela dele abre no modal, pronta para colar, e quando o devTools permitir o texto aparece direto na caixinha' },
+      { type: 'feat', description: 'Texto de só uma parte da imagem: "Só uma parte" deixa marcar, arrastando sobre a imagem, o trecho que tem o texto, e só ele vai para o devTools' },
+      { type: 'improvement', description: 'O modal de ferramenta pede ao devTools para mostrar só a ferramenta, sem o menu (passa a valer quando o devTools suportar)' },
+      { type: 'fix', description: 'A caixinha não confunde mais texto comum ou grid com expressão cron' },
+    ],
+  },
+  {
     version: '0.1.6',
     date: '2026-11-09',
     label: '',
     changes: [
       { type: 'improvement', description: 'Ações da área devTools (sobre, recarregar e abrir em nova aba) agora ficam flutuando sobre o próprio devTools, sem alterar o cabeçalho ao trocar de aba' },
       { type: 'improvement', description: 'A área devTools agora abre na tela Início dele' },
+      { type: 'improvement', description: 'A busca de branches e commits passa a abrir com Alt+B, no lugar da tecla B sozinha' },
+      { type: 'improvement', description: 'Menu de opções mais enxuto: a busca de branches e commits fica na busca de cards e no atalho Alt+B e as notas do devTools no atalho Alt+N' },
       { type: 'feat', description: 'Painel flutuante de notas do devTools (Alt+N): consulta e busca as notas sem sair do card, com cópia de cada bloco, e cria ou edita notas na tela do próprio devTools dentro do painel, com a lista atualizada na hora; notas sem título aparecem pelo rótulo do primeiro bloco, como no devTools' },
       { type: 'feat', description: 'Caixinha sobre o texto selecionado na descrição ou nos comentários de um card, com copiar, buscar branch/commit e as ferramentas do devTools; ao selecionar um JWT, CPF/CNPJ, boleto, Pix, cron, SQL, XML, Base64 ou texto com acentuação quebrada, já mostra o resultado calculado pelo devTools; Alt+T abre a caixinha para texto selecionado em qualquer lugar, e "Abrir no devTools" mostra a tela completa da ferramenta num modal, sem sair do git-calm' },
       { type: 'feat', description: '"O que há de novo" com abas git-calm e devTools: as novidades do devTools aparecem assim que ele passar a compartilhá-las' },
       { type: 'feat', description: 'Mapa de atalhos de teclado: tecla ? ou "Atalhos" no rodapé' },
-      { type: 'improvement', description: 'A busca de branches e commits passa a abrir com Alt+B, no lugar da tecla B sozinha' },
-      { type: 'improvement', description: 'Menu de opções mais enxuto: a busca de branches e commits fica na busca de cards e no atalho Alt+B e as notas do devTools no atalho Alt+N' },
       { type: 'feat', description: '"Reportar bug" do rodapé agora pergunta o projeto: git-calm ou devTools' },
       { type: 'feat', description: 'Token do GitHub compartilhado com o devTools: o token configurado no git-calm é enviado automaticamente para ele, sem precisar cadastrar de novo (requer a versão do devTools com suporte à integração)' },
     ]
