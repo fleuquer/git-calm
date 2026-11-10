@@ -21,6 +21,13 @@ export const CHANGELOG: VersionEntry[] = [
     changes: [
       { type: 'improvement', description: 'Ações da área devTools (sobre, recarregar e abrir em nova aba) agora ficam flutuando sobre o próprio devTools, sem alterar o cabeçalho ao trocar de aba' },
       { type: 'improvement', description: 'A área devTools agora abre na tela Início dele' },
+      { type: 'feat', description: 'Painel flutuante de notas do devTools (Alt+N): consulta e busca as notas sem sair do card, com cópia de cada bloco, e cria ou edita notas na tela do próprio devTools dentro do painel, com a lista atualizada na hora; notas sem título aparecem pelo rótulo do primeiro bloco, como no devTools' },
+      { type: 'feat', description: 'Caixinha sobre o texto selecionado na descrição ou nos comentários de um card, com copiar, buscar branch/commit e as ferramentas do devTools; ao selecionar um JWT, CPF/CNPJ, boleto, Pix, cron, SQL, XML, Base64 ou texto com acentuação quebrada, já mostra o resultado calculado pelo devTools; Alt+T abre a caixinha para texto selecionado em qualquer lugar, e "Abrir no devTools" mostra a tela completa da ferramenta num modal, sem sair do git-calm' },
+      { type: 'feat', description: '"O que há de novo" com abas git-calm e devTools: as novidades do devTools aparecem assim que ele passar a compartilhá-las' },
+      { type: 'feat', description: 'Mapa de atalhos de teclado: tecla ? ou "Atalhos" no rodapé' },
+      { type: 'improvement', description: 'A busca de branches e commits passa a abrir com Alt+B, no lugar da tecla B sozinha' },
+      { type: 'improvement', description: 'Menu de opções mais enxuto: a busca de branches e commits fica na busca de cards e no atalho Alt+B e as notas do devTools no atalho Alt+N' },
+      { type: 'feat', description: '"Reportar bug" do rodapé agora pergunta o projeto: git-calm ou devTools' },
       { type: 'feat', description: 'Token do GitHub compartilhado com o devTools: o token configurado no git-calm é enviado automaticamente para ele, sem precisar cadastrar de novo (requer a versão do devTools com suporte à integração)' },
     ]
   },

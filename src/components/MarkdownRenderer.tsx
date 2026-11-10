@@ -266,6 +266,7 @@ export const MarkdownRenderer: React.FC<Props> = ({ html, className = '', compac
   return (
     <div
       className={`markdown-body ${className}`}
+      data-devtools-tools=""
       onClick={handleClick}
       dangerouslySetInnerHTML={{ __html: content }}
     />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ExternalLink, RefreshCw, Info } from 'lucide-react';
 
 /**
@@ -7,58 +7,23 @@ import { ExternalLink, RefreshCw, Info } from 'lucide-react';
  * mostramos, sem alterar nada dele. Não há barra própria: o devTools já tem
  * o seu menu; as ações daqui ficam numa pílula flutuante sobre ele.
  */
-export const DEVTOOLS_URL = 'https://dev-tools-cards.vercel.app';
-const DEVTOOLS_ORIGIN = new URL(DEVTOOLS_URL).origin;
-
-/**
- * Protocolo de integração (postMessage entre o git-calm e o iframe do devTools):
- *  - devTools → git-calm: { type: 'devtools:ready' } quando estiver pronto para receber dados
- *  - git-calm → devTools: { type: 'gitcalm:token', version: 1, token } em resposta,
- *    e de novo sempre que o token mudar
- * Os dois lados conferem a origem da mensagem; o token só é enviado para DEVTOOLS_ORIGIN.
- */
-const MSG_READY = 'devtools:ready';
-const MSG_TOKEN = 'gitcalm:token';
+import { DEVTOOLS_URL } from '../services/devtoolsConfig';
+import { attachDevToolsFrame, detachDevToolsFrame } from '../services/devtoolsBridge';
 
 interface DevToolsViewProps {
   hidden?: boolean;
-  /** Token do GitHub já configurado no git-calm, compartilhado com o devTools */
-  token: string;
 }
 
-export function DevToolsView({ hidden, token }: DevToolsViewProps) {
+export function DevToolsView({ hidden }: DevToolsViewProps) {
   const [reloadKey, setReloadKey] = useState(0);
   const [loadedKey, setLoadedKey] = useState<number | null>(null);
   const loading = loadedKey !== reloadKey;
-  const frameRef = useRef<HTMLIFrameElement>(null);
-  const readyRef = useRef(false);
-  const tokenRef = useRef(token);
 
-  const sendToken = () => {
-    frameRef.current?.contentWindow?.postMessage(
-      { type: MSG_TOKEN, version: 1, token: tokenRef.current },
-      DEVTOOLS_ORIGIN,
-    );
-  };
-
-  // Responde ao "pronto" do devTools com o token
-  useEffect(() => {
-    const onMessage = (e: MessageEvent) => {
-      if (e.origin !== DEVTOOLS_ORIGIN) return;
-      if (e.source !== frameRef.current?.contentWindow) return;
-      if (e.data?.type !== MSG_READY) return;
-      readyRef.current = true;
-      sendToken();
-    };
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
+  // A ponte passa a conversar com esta cópia (notas, ferramentas e token) enquanto ela estiver na tela
+  const frameRef = useCallback((el: HTMLIFrameElement) => {
+    attachDevToolsFrame(el);
+    return () => detachDevToolsFrame(el);
   }, []);
-
-  // Token trocado no git-calm: repassa se o devTools já estiver pronto
-  useEffect(() => {
-    tokenRef.current = token;
-    if (readyRef.current) sendToken();
-  }, [token]);
 
   return (
     <div className={`relative flex-1 min-h-0 ${hidden ? 'hidden' : ''}`}>
@@ -76,7 +41,7 @@ export function DevToolsView({ hidden, token }: DevToolsViewProps) {
         allow="clipboard-read; clipboard-write"
         className="w-full h-full border-0 bg-white"
       />
-      <DevToolsActions onReload={() => { readyRef.current = false; setReloadKey(k => k + 1); }} />
+      <DevToolsActions onReload={() => setReloadKey(k => k + 1)} />
     </div>
   );
 }

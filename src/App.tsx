@@ -20,7 +20,7 @@ import { NotificationAlertModal, type AlertItem } from './components/Notificatio
 import { NotificationDetailModal } from './components/NotificationDetailModal';
 import { GitHubService } from './services/github';
 import type { ProjectColumn as ProjectColumnType, ViewTab, ProjectCard } from './types';
-import { RefreshCw, GitBranch, Settings as SettingsIcon, Filter, Package, FileText, SlidersHorizontal, Layers, Check, BarChart2, ExternalLink, ClipboardList, Rows3, Wrench } from 'lucide-react';
+import { RefreshCw, GitBranch, Settings as SettingsIcon, Filter, Package, FileText, SlidersHorizontal, Layers, Check, BarChart2, ClipboardList, Rows3, Wrench, Keyboard } from 'lucide-react';
 import { CardSearchBar } from './components/CardSearchBar';
 import { DEFAULT_VIEWS } from './utils/defaultViews';
 import { getPeopleForView } from './utils/viewPeopleMapping';
@@ -38,6 +38,11 @@ import { PendingMentionsButton } from './components/PendingMentionsButton';
 import { usePageVisible } from './hooks/usePageVisible';
 import { RefSearchModal } from './components/RefSearchModal';
 import { DevToolsView } from './components/DevToolsView';
+import { DevToolsNotesPanel } from './components/DevToolsNotesPanel';
+import { ReportBugMenu } from './components/ReportBugMenu';
+import { SelectionTools } from './components/SelectionTools';
+import { ShortcutsModal } from './components/ShortcutsModal';
+import { stopDevToolsBridge, setDevToolsToken } from './services/devtoolsBridge';
 import type { CardSearchBarHandle } from './components/CardSearchBar';
 import { usePendingMentions } from './hooks/usePendingMentions';
 import { getReworkColumns } from './utils/reworkColumns';
@@ -129,13 +134,25 @@ function App() {
   // Card aberto a partir da busca de branches: ao fechar o card, volta para a busca como estava
   const returnToRefSearchRef = useRef(false);
   const cardSearchRef = useRef<CardSearchBarHandle>(null);
+  // Painel flutuante com as notas do devTools (Alt+N)
+  const [isNotesPanelOpen, setIsNotesPanelOpen] = useState(false);
 
-  // Atalhos globais: "/" ou Ctrl+K abre a busca de cards; "B" abre a busca de branches e commits.
-  // Ignorados enquanto se digita num campo ou com algum modal/painel aberto.
+  // Mapa de atalhos ("?"). Atalho novo: registre também em ShortcutsModal.
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const closeShortcuts = useCallback(() => setIsShortcutsOpen(false), []);
+
+  // Atalhos globais: "/" ou Ctrl+K abre a busca de cards; Alt+B a busca de branches e commits;
+  // "?" o mapa de atalhos. Ignorados com algum modal/painel aberto ("/" e "?" também digitando).
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       const typing = !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+      // Alt+N: notas do devTools — funciona mesmo digitando e com um card aberto
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.code === 'KeyN') {
+        e.preventDefault();
+        setIsNotesPanelOpen(v => !v);
+        return;
+      }
       const overlayOpen = !!document.querySelector('.fixed.inset-0');
       if (overlayOpen) return;
       const ctrlK = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k';
@@ -144,21 +161,26 @@ function App() {
         cardSearchRef.current?.open();
         return;
       }
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.code === 'KeyB') {
+        e.preventDefault();
+        setRefSearch(prev => ({ ...prev, open: true, query: '' }));
+        return;
+      }
       if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === '/') {
         e.preventDefault();
         cardSearchRef.current?.open();
-      } else if (e.key === 'b' || e.key === 'B') {
+      } else if (e.key === '?') {
         e.preventDefault();
-        setRefSearch(prev => ({ ...prev, open: true, query: '' }));
+        setIsShortcutsOpen(true);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
   const [mainView, setMainView] = useState<'board' | 'dashboard' | 'devtools'>('board');
-  // Mantém o iframe do devTools montado depois da primeira visita (não recarrega ao alternar)
-  const [devToolsVisited, setDevToolsVisited] = useState(false);
+  // Token do git-calm compartilhado com o devTools (enviado pela ponte quando ele fica pronto)
+  useEffect(() => { setDevToolsToken(token); }, [token]);
 
 
   // Estado para menu de opções do header
@@ -715,6 +737,8 @@ function App() {
     setColumns([]);
     setUser(null);
     setIsSettingsPanelOpen(false);
+    setIsNotesPanelOpen(false);
+    stopDevToolsBridge();
   };
 
   const handleThemeChange = (themeId: string) => {
@@ -1005,7 +1029,7 @@ function App() {
                   Dados
                 </button>
                 <button
-                  onClick={() => { setMainView('devtools'); setDevToolsVisited(true); }}
+                  onClick={() => setMainView('devtools')}
                   title="devTools: kanban pessoal de cards (projeto independente)"
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     mainView === 'devtools'
@@ -1194,15 +1218,6 @@ function App() {
                     </button>
 
                     <button
-                      onClick={() => { openRefSearch(); setIsMenuOpen(false); }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      <GitBranch size={14} className="text-gray-400 shrink-0" />
-                      <span>Buscar branch ou commit</span>
-                      <kbd className="ml-auto px-1 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-sans text-gray-400 dark:text-gray-500 leading-4" title="Atalho: B">B</kbd>
-                    </button>
-
-                    <button
                       onClick={() => { setIsReleaseModalOpen(true); setIsMenuOpen(false); }}
                       className="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     >
@@ -1246,7 +1261,8 @@ function App() {
           </div>
         )}
 
-        {devToolsVisited && <DevToolsView hidden={mainView !== 'devtools'} token={token} />}
+        {/* Só montado enquanto visível: uma cópia do devTools por vez (ver devtoolsBridge) */}
+        {mainView === 'devtools' && <DevToolsView />}
 
         {mainView === 'devtools' ? null : loading && columns.length === 0 ? (
           <div className="flex items-center justify-center flex-1">
@@ -1306,15 +1322,16 @@ function App() {
             <span className="text-xs font-mono font-light text-gray-400 dark:text-gray-500" style={{ marginLeft: '-4px' }}>calm</span>
           </div>
           <span className="text-gray-300 dark:text-gray-700 text-xs select-none">·</span>
-          <a
-            href="https://github.com/fleuquer/git-calm/issues/new"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-600 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+          <ReportBugMenu />
+          <span className="text-gray-300 dark:text-gray-700 text-xs select-none">·</span>
+          <button
+            onClick={() => setIsShortcutsOpen(true)}
+            title="Atalhos de teclado (?)"
+            className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
           >
-            <ExternalLink size={10} />
-            Reportar bug
-          </a>
+            <Keyboard size={12} />
+            Atalhos
+          </button>
         </div>
         <button
           onClick={handleVersionClick}
@@ -1405,6 +1422,11 @@ function App() {
       />
 
       {/* Busca de branches e commits (#10). Fechar só esconde: a última busca fica guardada */}
+      <SelectionTools onRefSearch={openRefSearch} />
+      <ShortcutsModal isOpen={isShortcutsOpen} onClose={closeShortcuts} />
+
+      <DevToolsNotesPanel isOpen={isNotesPanelOpen} onClose={() => setIsNotesPanelOpen(false)} devToolsTabOpen={mainView === 'devtools'} />
+
       <RefSearchModal
         isOpen={refSearch.open}
         openKey={refSearch.key}
