@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '0.1.9';
+export const CURRENT_VERSION = '0.1.8';
 export const VERSION_STORAGE_KEY = 'app_last_seen_version';
 
 export interface Change {
@@ -23,6 +23,7 @@ export const CHANGELOG: VersionEntry[] = [
       { type: 'feat', description: 'Configuração padrão da organização: quem entra pela primeira vez já recebe as abas, mapeamentos, templates e demais configurações da equipe publicadas para a organização (só membros recebem), com o número do projeto preenchido no login' },
       { type: 'feat', description: 'Aviso ao abrir o git-calm quando a organização publica uma configuração padrão ou a atualiza, perguntando se a pessoa quer usar; "Agora não" vale só para aquela versão' },
       { type: 'feat', description: 'Em Configurações › Backup: aplicar ou atualizar com a configuração padrão da organização e gerar o arquivo da configuração da equipe para publicar' },
+      { type: 'improvement', description: 'A configuração padrão da organização inclui a visão compacta dos cards e o layout em lista; ao aplicar, o aviso diz em quais modos os cards ficaram e que dá para mudar no menu Opções' },
     ],
   },
   {

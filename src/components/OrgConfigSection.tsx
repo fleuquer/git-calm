@@ -6,6 +6,7 @@ import {
   downloadOrgConfigFile,
   fetchOrgConfig,
   ORG_CONFIG_NOTICE_KEY,
+  orgConfigAppliedMessage,
   TEAM_KEY_LABELS,
   TEAM_KEYS,
   type OrgConfigResult,
@@ -42,7 +43,7 @@ export function OrgConfigSection({ token, org, projectNumber }: Props) {
     );
     if (!ok) return;
     const n = applyOrgConfig(org, result.versao, result.config);
-    sessionStorage.setItem(ORG_CONFIG_NOTICE_KEY, `Configuração padrão da ${org} aplicada (${n} ${n === 1 ? 'item' : 'itens'}).`);
+    sessionStorage.setItem(ORG_CONFIG_NOTICE_KEY, orgConfigAppliedMessage(org, n, result.config));
     window.location.reload();
   };
 

@@ -11,6 +11,8 @@
 /** Configurações da equipe: entram no padrão da organização */
 export const TEAM_KEYS = [
   'github_views',
+  'github_compact_card_view',
+  'github_list_layout',
   'psi_repo_groups',
   'github-project-view-tags-mapping',
   'github-project-view-people-mapping',
@@ -28,6 +30,8 @@ export const TEAM_KEYS = [
 /** Nomes para mostrar na tela */
 export const TEAM_KEY_LABELS: Record<(typeof TEAM_KEYS)[number], string> = {
   github_views: 'Abas (views)',
+  github_compact_card_view: 'Visão compacta dos cards',
+  github_list_layout: 'Modo lista',
   psi_repo_groups: 'Grupos de repositórios',
   'github-project-view-tags-mapping': 'Tags por aba',
   'github-project-view-people-mapping': 'Pessoas por aba',
@@ -109,6 +113,18 @@ export function applyOrgConfig(org: string, versao: string, config: OrgConfigFil
   }
   localStorage.setItem(appliedKey(org), versao);
   return n;
+}
+
+/**
+ * Aviso mostrado depois de aplicar o padrão. Se o padrão liga a visão compacta ou o layout em
+ * lista, avisa que os cards estão assim e onde mudar (é escolha de cada um).
+ */
+export function orgConfigAppliedMessage(org: string, count: number, config: OrgConfigFile): string {
+  const on = (k: string) => config[k] === true || config[k] === 'true';
+  const modes = [on('github_compact_card_view') && 'na visão compacta', on('github_list_layout') && 'no layout em lista'].filter(Boolean);
+  let msg = `Configuração padrão da ${org} aplicada (${count} ${count === 1 ? 'item' : 'itens'}).`;
+  if (modes.length) msg += ` Os cards estão ${modes.join(' e ')}: dá para mudar no menu Opções, no cabeçalho.`;
+  return msg;
 }
 
 /** Arquivo da configuração da equipe (a partir do que está configurado neste navegador). */

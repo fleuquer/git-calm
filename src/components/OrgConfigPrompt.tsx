@@ -8,6 +8,7 @@ import {
   declineOrgConfig,
   fetchOrgConfig,
   ORG_CONFIG_NOTICE_KEY,
+  orgConfigAppliedMessage,
   TEAM_KEY_LABELS,
   TEAM_KEYS,
   type OrgConfigFile,
@@ -47,7 +48,7 @@ export function OrgConfigPrompt({ token, org }: Props) {
 
   const accept = () => {
     const n = applyOrgConfig(org, offer.versao, offer.config);
-    sessionStorage.setItem(ORG_CONFIG_NOTICE_KEY, `Configuração padrão da ${org} aplicada (${n} ${n === 1 ? 'item' : 'itens'}).`);
+    sessionStorage.setItem(ORG_CONFIG_NOTICE_KEY, orgConfigAppliedMessage(org, n, offer.config));
     window.location.reload();
   };
   const decline = () => {

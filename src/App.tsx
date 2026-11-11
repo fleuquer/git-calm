@@ -43,7 +43,7 @@ import { ReportBugMenu } from './components/ReportBugMenu';
 import { SelectionTools } from './components/SelectionTools';
 import { ShortcutsModal } from './components/ShortcutsModal';
 import { OrgConfigPrompt } from './components/OrgConfigPrompt';
-import { applyOrgConfig, fetchOrgConfig, hasLocalTeamConfig, ORG_CONFIG_NOTICE_KEY } from './utils/orgConfig';
+import { applyOrgConfig, fetchOrgConfig, hasLocalTeamConfig, ORG_CONFIG_NOTICE_KEY, orgConfigAppliedMessage } from './utils/orgConfig';
 import { stopDevToolsBridge, setDevToolsToken } from './services/devtoolsBridge';
 import type { CardSearchBarHandle } from './components/CardSearchBar';
 import { usePendingMentions } from './hooks/usePendingMentions';
@@ -146,7 +146,7 @@ function App() {
   });
   useEffect(() => {
     if (!orgConfigNotice) return;
-    const t = setTimeout(() => setOrgConfigNotice(null), 8000);
+    const t = setTimeout(() => setOrgConfigNotice(null), 15000);
     return () => clearTimeout(t);
   }, [orgConfigNotice]);
 
@@ -600,7 +600,7 @@ function App() {
         localStorage.setItem('github_token', newToken);
         localStorage.setItem('github_org', newOrg);
         localStorage.setItem('github_project', newProjectNumber.toString());
-        sessionStorage.setItem(ORG_CONFIG_NOTICE_KEY, `Configuração padrão da ${newOrg} aplicada (${n} ${n === 1 ? 'item' : 'itens'}). Dá para ajustar em Configurações.`);
+        sessionStorage.setItem(ORG_CONFIG_NOTICE_KEY, orgConfigAppliedMessage(newOrg, n, orgConfig.config));
         window.location.reload(); // as configurações são lidas ao abrir o app
         return;
       }
@@ -1454,7 +1454,7 @@ function App() {
       <ShortcutsModal isOpen={isShortcutsOpen} onClose={closeShortcuts} />
       <OrgConfigPrompt token={token} org={org} />
       {orgConfigNotice && (
-        <div role="status" className="fixed z-[500] bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm shadow-2xl">
+        <div role="status" className="fixed z-[500] bottom-12 left-1/2 -translate-x-1/2 w-max max-w-[min(640px,calc(100vw-2rem))] flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm shadow-2xl">
           <Check size={16} className="text-green-400 shrink-0" />
           <span>{orgConfigNotice}</span>
           <button onClick={() => setOrgConfigNotice(null)} className="text-gray-400 hover:text-white text-xs">Fechar</button>
