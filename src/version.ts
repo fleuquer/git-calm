@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '0.1.7';
+export const CURRENT_VERSION = '0.1.8';
 export const VERSION_STORAGE_KEY = 'app_last_seen_version';
 
 export interface Change {
@@ -15,17 +15,27 @@ export interface VersionEntry {
 
 export const CHANGELOG: VersionEntry[] = [
   {
+    version: '0.1.8',
+    date: '2026-11-11',
+    label: '',
+    changes: [
+      { type: 'feat', description: 'Configuração padrão da organização: quem entra pela primeira vez já recebe as abas, mapeamentos, templates e demais configurações da equipe publicadas para a organização (só membros recebem), com o número do projeto preenchido no login' },
+      { type: 'feat', description: 'Aviso ao abrir o git-calm quando a organização publica uma configuração padrão ou a atualiza, perguntando se a pessoa quer usar; "Agora não" vale só para aquela versão' },
+      { type: 'feat', description: 'Em Configurações › Backup: aplicar ou atualizar com a configuração padrão da organização e gerar o arquivo da configuração da equipe para publicar' },
+    ],
+  },
+  {
     version: '0.1.7',
     date: '2026-11-10',
     label: '',
     changes: [
-      { type: 'feat', description: 'A caixinha do texto selecionado sugere as ferramentas novas do devTools 1.0.23 que combinam com o texto (SELECT → UPDATE/DELETE, Gerar DDL, Leitor de log, Anonimizar, Extrair do texto, Limpar texto colado, Array → JSON, Entidades HTML), abrindo a tela delas no modal com o texto copiado' },
-      { type: 'feat', description: 'Grid colado do banco ou da planilha (colunas separadas por tab) vira tabela em Markdown direto na caixinha' },
       { type: 'improvement', description: 'Todas as ferramentas do devTools já aparecem abertas na caixinha do texto selecionado, sem precisar de "Mais…": as reconhecidas pelo formato vêm primeiro, em destaque' },
       { type: 'improvement', description: 'A ferramenta aberta no modal vem preenchida com o texto selecionado (quando o devTools permitir); até lá, o texto selecionado fica no topo do modal com um botão para copiar' },
+      { type: 'improvement', description: 'O modal de ferramenta pede ao devTools para mostrar só a ferramenta, sem o menu (passa a valer quando o devTools suportar)' },
+      { type: 'feat', description: 'A caixinha do texto selecionado sugere as ferramentas novas do devTools 1.0.23 que combinam com o texto (SELECT → UPDATE/DELETE, Gerar DDL, Leitor de log, Anonimizar, Extrair do texto, Limpar texto colado, Array → JSON, Entidades HTML), abrindo a tela delas no modal com o texto copiado' },
+      { type: 'feat', description: 'Grid colado do banco ou da planilha (colunas separadas por tab) vira tabela em Markdown direto na caixinha' },
       { type: 'feat', description: 'Texto de imagem: ao passar o mouse numa imagem do card aparece o botão "Texto da imagem", que manda a imagem para a leitura de texto (OCR) do devTools; por enquanto a imagem vai copiada e a tela dele abre no modal, pronta para colar, e quando o devTools permitir o texto aparece direto na caixinha' },
       { type: 'feat', description: 'Texto de só uma parte da imagem: "Só uma parte" deixa marcar, arrastando sobre a imagem, o trecho que tem o texto, e só ele vai para o devTools' },
-      { type: 'improvement', description: 'O modal de ferramenta pede ao devTools para mostrar só a ferramenta, sem o menu (passa a valer quando o devTools suportar)' },
       { type: 'fix', description: 'A caixinha não confunde mais texto comum ou grid com expressão cron' },
     ],
   },

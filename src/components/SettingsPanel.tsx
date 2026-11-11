@@ -9,6 +9,7 @@ import type { ActivityMonitorSettings } from './ActivityLogButton';
 import { themes } from '../themes';
 import { GitHubService } from '../services/github';
 import { exportConfig, importConfig } from '../utils/configBackup';
+import { OrgConfigSection } from './OrgConfigSection';
 import { playNotificationSound } from '../utils/notificationSounds';
 import { getSystemNotificationPermission, requestSystemNotificationPermission } from '../utils/systemNotifications';
 import { FONT_SIZES, FONT_FAMILIES, getFontSize, getFontFamily, saveFontSize, saveFontFamily, type FontSizeId, type FontFamilyId } from '../utils/fontSettings';
@@ -495,6 +496,9 @@ export const SettingsPanel: React.FC<Props> = ({
                 : 'Desativado: a ordenação escolhida volta ao padrão a cada recarregamento da página.'}
             </p>
           </div>
+
+          {/* Configuração padrão da organização */}
+          <OrgConfigSection token={token} org={org} projectNumber={projectNumber} />
 
           {/* Exportar */}
           <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-5">

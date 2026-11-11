@@ -40,6 +40,24 @@ npm run deploy
 
 A aplicação será publicada em `https://<usuario>.github.io/git-calm/`.
 
+## 🏢 Configuração padrão da organização (opcional)
+
+Para que quem entra pela primeira vez já receba as configurações da equipe (abas, mapeamentos,
+templates, prioridade...), publique um padrão por organização. Só membros da organização recebem,
+e nada de pessoal entra (token, tema, notificações, menções, históricos).
+
+1. Crie um repositório **privado** para os padrões (ex.: `minha-conta/git-calm-presets`).
+2. No git-calm, em **Configurações › Backup › Configuração da organização**, clique em
+   **Gerar arquivo da configuração da equipe** e coloque o arquivo baixado em `orgs/<organizacao>.json`
+   nesse repositório.
+3. Crie um token *fine-grained* com acesso só a esse repositório e permissão **Contents: Read-only**.
+4. Na Vercel (projeto do git-calm › Settings › Environment Variables), cadastre
+   `GITCALM_PRESETS_REPO` (ex.: `minha-conta/git-calm-presets`) e `GITCALM_PRESETS_TOKEN` (o token)
+   e faça um novo deploy. Em desenvolvimento, as mesmas variáveis podem ir em `.env.local`.
+
+Sem essas variáveis, ou sem arquivo para a organização, o git-calm funciona como antes. O recurso usa
+as funções de `api/`, então precisa de hospedagem com funções (Vercel); no GitHub Pages ele fica desligado.
+
 ## 🔧 Configuração inicial
 
 Na tela de login, informe:

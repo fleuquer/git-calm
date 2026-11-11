@@ -42,6 +42,8 @@ import { DevToolsNotesPanel } from './components/DevToolsNotesPanel';
 import { ReportBugMenu } from './components/ReportBugMenu';
 import { SelectionTools } from './components/SelectionTools';
 import { ShortcutsModal } from './components/ShortcutsModal';
+import { OrgConfigPrompt } from './components/OrgConfigPrompt';
+import { applyOrgConfig, fetchOrgConfig, hasLocalTeamConfig, ORG_CONFIG_NOTICE_KEY } from './utils/orgConfig';
 import { stopDevToolsBridge, setDevToolsToken } from './services/devtoolsBridge';
 import type { CardSearchBarHandle } from './components/CardSearchBar';
 import { usePendingMentions } from './hooks/usePendingMentions';
@@ -134,6 +136,20 @@ function App() {
   // Card aberto a partir da busca de branches: ao fechar o card, volta para a busca como estava
   const returnToRefSearchRef = useRef(false);
   const cardSearchRef = useRef<CardSearchBarHandle>(null);
+  // Aviso de "configuração padrão da organização aplicada", depois do recarregamento do login
+  const [orgConfigNotice, setOrgConfigNotice] = useState<string | null>(() => {
+    try {
+      const msg = sessionStorage.getItem(ORG_CONFIG_NOTICE_KEY);
+      sessionStorage.removeItem(ORG_CONFIG_NOTICE_KEY);
+      return msg;
+    } catch { return null; }
+  });
+  useEffect(() => {
+    if (!orgConfigNotice) return;
+    const t = setTimeout(() => setOrgConfigNotice(null), 8000);
+    return () => clearTimeout(t);
+  }, [orgConfigNotice]);
+
   // Painel flutuante com as notas do devTools (Alt+N)
   const [isNotesPanelOpen, setIsNotesPanelOpen] = useState(false);
 
@@ -576,6 +592,18 @@ function App() {
     try {
       const service = new GitHubService(newToken);
       const userData = await service.verifyToken();
+
+      // Primeira vez neste navegador e a organização tem configuração padrão: já entra com ela
+      const orgConfig = hasLocalTeamConfig() ? null : await fetchOrgConfig(newToken, newOrg);
+      if (orgConfig?.status === 'ok') {
+        const n = applyOrgConfig(newOrg, orgConfig.versao, orgConfig.config);
+        localStorage.setItem('github_token', newToken);
+        localStorage.setItem('github_org', newOrg);
+        localStorage.setItem('github_project', newProjectNumber.toString());
+        sessionStorage.setItem(ORG_CONFIG_NOTICE_KEY, `Configuração padrão da ${newOrg} aplicada (${n} ${n === 1 ? 'item' : 'itens'}). Dá para ajustar em Configurações.`);
+        window.location.reload(); // as configurações são lidas ao abrir o app
+        return;
+      }
 
       setUser(userData);
       setToken(newToken);
@@ -1424,6 +1452,14 @@ function App() {
       {/* Busca de branches e commits (#10). Fechar só esconde: a última busca fica guardada */}
       <SelectionTools onRefSearch={openRefSearch} />
       <ShortcutsModal isOpen={isShortcutsOpen} onClose={closeShortcuts} />
+      <OrgConfigPrompt token={token} org={org} />
+      {orgConfigNotice && (
+        <div role="status" className="fixed z-[500] bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm shadow-2xl">
+          <Check size={16} className="text-green-400 shrink-0" />
+          <span>{orgConfigNotice}</span>
+          <button onClick={() => setOrgConfigNotice(null)} className="text-gray-400 hover:text-white text-xs">Fechar</button>
+        </div>
+      )}
 
       <DevToolsNotesPanel isOpen={isNotesPanelOpen} onClose={() => setIsNotesPanelOpen(false)} devToolsTabOpen={mainView === 'devtools'} />
 

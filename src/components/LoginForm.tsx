@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { LogIn, GitBranch, Info, ExternalLink, Lock, Building2, Hash, Eye, EyeOff } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { LogIn, GitBranch, Info, ExternalLink, Lock, Building2, Hash, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { fetchOrgConfig } from '../utils/orgConfig';
 
 interface Props {
   onLogin: (token: string, org: string, projectNumber: number) => void;
@@ -222,6 +223,24 @@ export const LoginForm: React.FC<Props> = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [showHelp, setShowHelp] = useState<string | null>(null);
   const [showToken, setShowToken] = useState(false);
+  // Configuração padrão encontrada para a organização digitada (só para membros)
+  const [orgDefault, setOrgDefault] = useState<{ org: string; projectNumber?: number } | null>(null);
+
+  useEffect(() => {
+    const t = token.trim(), o = org.trim();
+    if (!t || !o) return;
+    let alive = true;
+    const timer = setTimeout(() => {
+      fetchOrgConfig(t, o).then(r => {
+        if (!alive) return;
+        if (r.status !== 'ok') { setOrgDefault(null); return; }
+        const pn = Number(r.config._meta?.projectNumber) || undefined;
+        setOrgDefault({ org: o, projectNumber: pn });
+        if (pn) setProjectNumber(prev => prev.trim() ? prev : String(pn));
+      });
+    }, 600);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [token, org]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -390,6 +409,12 @@ export const LoginForm: React.FC<Props> = ({ onLogin }) => {
                     </div>
                     <p style={{ color: '#1d4ed8' }}>Use exatamente como está na URL (minúsculas, com hífens).</p>
                   </div>
+                )}
+                {orgDefault && orgDefault.org === org.trim() && (
+                  <p className="mt-2 text-xs flex items-center gap-1.5" style={{ color: '#0f766e' }}>
+                    <Sparkles size={12} />
+                    A {orgDefault.org} tem uma configuração padrão: você já entra com ela{orgDefault.projectNumber ? ', e o número do projeto foi preenchido' : ''}.
+                  </p>
                 )}
               </div>
 
