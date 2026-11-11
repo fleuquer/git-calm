@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '0.1.8';
+export const CURRENT_VERSION = '0.1.9';
 export const VERSION_STORAGE_KEY = 'app_last_seen_version';
 
 export interface Change {
@@ -19,6 +19,7 @@ export const CHANGELOG: VersionEntry[] = [
     date: '2026-11-11',
     label: '',
     changes: [
+      { type: 'improvement', description: 'Configurações › Backup mostra por que a configuração padrão da organização não chegou: token sem permissão para confirmar a organização, token do servidor sem acesso ao repositório de padrões ou arquivo da organização ainda não publicado' },
       { type: 'feat', description: 'Configuração padrão da organização: quem entra pela primeira vez já recebe as abas, mapeamentos, templates e demais configurações da equipe publicadas para a organização (só membros recebem), com o número do projeto preenchido no login' },
       { type: 'feat', description: 'Aviso ao abrir o git-calm quando a organização publica uma configuração padrão ou a atualiza, perguntando se a pessoa quer usar; "Agora não" vale só para aquela versão' },
       { type: 'feat', description: 'Em Configurações › Backup: aplicar ou atualizar com a configuração padrão da organização e gerar o arquivo da configuração da equipe para publicar' },

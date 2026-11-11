@@ -56,7 +56,7 @@ export interface OrgConfigFile {
 
 export type OrgConfigResult =
   | { status: 'ok'; versao: string; config: OrgConfigFile }
-  | { status: 'nenhuma' }
+  | { status: 'nenhuma'; motivo?: string }
   | { status: 'erro'; message: string };
 
 /** Busca a configuração padrão da organização (só membros recebem). */
@@ -69,12 +69,12 @@ export async function fetchOrgConfig(token: string, org: string): Promise<OrgCon
   if (!resp || resp.status === 404 || !resp.headers.get('content-type')?.includes('application/json')) {
     return { status: 'nenhuma' };
   }
-  const data = (await resp.json().catch(() => null)) as { status?: string; versao?: string; config?: OrgConfigFile; erro?: string } | null;
+  const data = (await resp.json().catch(() => null)) as { status?: string; versao?: string; config?: OrgConfigFile; erro?: string; motivo?: string } | null;
   if (!resp.ok) return { status: 'erro', message: data?.erro ?? `Erro ${resp.status} ao buscar a configuração da organização` };
   if (data?.status === 'ok' && data.config && typeof data.config === 'object') {
     return { status: 'ok', versao: data.versao ?? '', config: data.config };
   }
-  return { status: 'nenhuma' };
+  return { status: 'nenhuma', motivo: data?.motivo };
 }
 
 /** Este navegador já tem alguma configuração da equipe feita à mão? */

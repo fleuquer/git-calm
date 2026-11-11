@@ -63,12 +63,29 @@ export async function GET(request: Request): Promise<Response> {
 
   const membro = await isMember(userToken, org);
   if (membro === 'token-invalido') return json(401, { erro: 'Token do GitHub inválido' });
-  // Quem não é da organização recebe a mesma resposta de "não existe": não revela nada
-  if (membro === 'nao') return json(200, { status: 'nenhuma' });
+  // Quem não é da organização não fica sabendo se existe padrão: só o motivo de não receber
+  if (membro === 'nao') {
+    return json(200, {
+      status: 'nenhuma',
+      motivo: `O GitHub não confirmou que você é membro da ${org}. O token precisa da permissão read:org (e, se a organização usa SSO, estar autorizado para ela).`,
+    });
+  }
 
-  const arq = await gh(`/repos/${repo}/contents/orgs/${org.toLowerCase()}.json`, presetsToken);
+  // Daqui em diante é membro: pode ver o motivo exato quando algo da publicação está errado
+  const caminho = `orgs/${org.toLowerCase()}.json`;
+  const arq = await gh(`/repos/${repo}/contents/${caminho}`, presetsToken);
   if (!arq) return json(502, { erro: 'Não foi possível ler as configurações padrão' });
-  if (arq.status === 404) return json(200, { status: 'nenhuma' });
+  if (arq.status === 401) {
+    return json(200, { status: 'nenhuma', motivo: 'O token do servidor (GITCALM_PRESETS_TOKEN) é inválido ou venceu.' });
+  }
+  if (arq.status === 404) {
+    // arquivo que não existe ou repositório que o token do servidor não enxerga?
+    const r = await gh(`/repos/${repo}`, presetsToken);
+    const motivo = r?.ok
+      ? `Ainda não há o arquivo ${caminho} em ${repo}.`
+      : `O token do servidor (GITCALM_PRESETS_TOKEN) não acessa o repositório ${repo}: confira o nome em GITCALM_PRESETS_REPO e se o token inclui esse repositório com Contents: Read.`;
+    return json(200, { status: 'nenhuma', motivo });
+  }
   if (!arq.ok) return json(502, { erro: `Configurações padrão indisponíveis (GitHub ${arq.status})` });
 
   const d = (await arq.json().catch(() => null)) as { content?: string; sha?: string } | null;

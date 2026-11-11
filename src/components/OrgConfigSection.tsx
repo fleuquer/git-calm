@@ -52,7 +52,11 @@ export function OrgConfigSection({ token, org, projectNumber }: Props) {
   } else if (result.status === 'erro') {
     status = <span className="text-red-600 dark:text-red-400">{result.message}</span>;
   } else if (result.status === 'nenhuma') {
-    status = <span className="text-gray-500 dark:text-gray-400">A {org} não tem configuração padrão publicada.</span>;
+    status = (
+      <span className="text-gray-500 dark:text-gray-400">
+        {result.motivo ? <>Configuração padrão da {org} não disponível: {result.motivo}</> : <>A {org} não tem configuração padrão publicada.</>}
+      </span>
+    );
   } else if (applied && applied === result.versao) {
     status = <span className="text-green-700 dark:text-green-400">Você está com a configuração padrão da {org} em dia.</span>;
   } else {
