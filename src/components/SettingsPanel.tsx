@@ -10,6 +10,7 @@ import { themes } from '../themes';
 import { GitHubService } from '../services/github';
 import { exportConfig, importConfig } from '../utils/configBackup';
 import { OrgConfigSection } from './OrgConfigSection';
+import { DevToolsNotificationsSetting } from './DevToolsNotificationsSetting';
 import { playNotificationSound } from '../utils/notificationSounds';
 import { getSystemNotificationPermission, requestSystemNotificationPermission } from '../utils/systemNotifications';
 import { FONT_SIZES, FONT_FAMILIES, getFontSize, getFontFamily, saveFontSize, saveFontFamily, type FontSizeId, type FontFamilyId } from '../utils/fontSettings';
@@ -429,6 +430,9 @@ export const SettingsPanel: React.FC<Props> = ({
               </SectionCard>
             </div>
           </div>
+
+          {/* ── devTools ── */}
+          <DevToolsNotificationsSetting />
         </div>
       );
     }

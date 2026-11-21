@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest';
+import type { CardRelationsSummary } from '../types';
 import { filterReposByRules } from '../utils/repoMapping';
 import { getReposForView } from '../utils/viewRepoMapping';
 import type { ProjectSingleSelectField } from '../types';
@@ -30,6 +31,50 @@ export function createOctokit(token: string): Octokit {
   return new Octokit({ auth: token, request: { fetch: proxyFetch } });
 }
 
+/** O GitHub desta conta tem os campos de vínculo (pai, sub-issues, dependências)? */
+let boardRelationsSupported = true;
+
+/** Resumo dos vínculos do card para o ícone no quadro; undefined se não tem nenhum */
+function cardRelationsSummary(content: any): CardRelationsSummary | undefined {
+  const parent = content?.parent ? { number: content.parent.number, title: content.parent.title } : undefined;
+  const subTotal = content?.subIssuesSummary?.total ?? 0;
+  const dep = content?.issueDependenciesSummary;
+  const blockedBy = dep?.totalBlockedBy ?? 0;
+  const blocking = dep?.totalBlocking ?? 0;
+  if (!parent && !subTotal && !blockedBy && !blocking) return undefined;
+  return {
+    parent,
+    subTotal,
+    subCompleted: content?.subIssuesSummary?.completed ?? 0,
+    blockedBy,
+    blockedByOpen: dep?.blockedBy ?? 0,
+    blocking,
+  };
+}
+
+/** Card ligado a outro pela hierarquia do GitHub (pai ou sub-issue) */
+export interface RelatedIssue {
+  number: number;
+  title: string;
+  url: string;
+  owner: string;
+  repo: string;
+  state: 'OPEN' | 'CLOSED';
+  stateReason?: string;
+  /** Status no quadro (Projects), quando o card está num */
+  status?: string;
+}
+
+export interface IssueRelations {
+  parent: RelatedIssue | null;
+  children: RelatedIssue[];
+  /** Dependências: cards que bloqueiam este e cards que este bloqueia */
+  blockedBy: RelatedIssue[];
+  blocking: RelatedIssue[];
+  total: number;
+  completed: number;
+}
+
 export class GitHubService {
   private octokit: Octokit;
 
@@ -43,6 +88,12 @@ export class GitHubService {
       let hasNextPage = true;
       let endCursor: string | null = null;
       let singleSelectFields: ProjectSingleSelectField[] = [];
+
+      // Resumo dos vínculos de cada card (pai, sub-issues, dependências) para o ícone no quadro.
+      // Se o GitHub não tiver esses campos, o quadro carrega sem eles.
+      let relationsFields = boardRelationsSupported
+        ? 'parent { number title } subIssuesSummary { total completed } issueDependenciesSummary { blockedBy totalBlockedBy blocking totalBlocking }'
+        : '';
 
       // Buscar todos os itens com paginação
       while (hasNextPage) {
@@ -119,6 +170,7 @@ export class GitHubService {
                         createdAt
                         updatedAt
                         comments { totalCount }
+                        ${relationsFields}
                       }
                       ... on PullRequest {
                         number
@@ -150,11 +202,21 @@ export class GitHubService {
           }
         `;
 
-        const response: any = await this.octokit.graphql(query, {
-          org,
-          number: projectNumber,
-          cursor: endCursor,
-        });
+        let response: any;
+        try {
+          response = await this.octokit.graphql(query, {
+            org,
+            number: projectNumber,
+            cursor: endCursor,
+          });
+        } catch (err) {
+          if (relationsFields && /parent|subIssuesSummary|issueDependenciesSummary/.test(String((err as Error)?.message))) {
+            boardRelationsSupported = false;
+            relationsFields = '';
+            continue; // mesma página, sem os vínculos
+          }
+          throw err;
+        }
 
         if (!endCursor) {
           singleSelectFields = (response.organization.projectV2.fields?.nodes ?? [])
@@ -232,6 +294,7 @@ export class GitHubService {
           url: content.url,
           issueState: content.state,
           totalComments: content.comments?.totalCount,
+          relations: cardRelationsSummary(content),
           // Extrair repo da URL: https://github.com/org/repo/issues/123
           repo: content.url.split('/')[4],
         };
@@ -778,6 +841,53 @@ export class GitHubService {
       console.error(`Erro ao buscar timeline da issue ${issueNumber}:`, error);
       return null;
     }
+  }
+
+  /**
+   * Vínculos do card no GitHub: o card pai ("Parent issue"), as sub-issues e as dependências
+   * (bloqueado por / bloqueia), com estado
+   * (aberta/fechada) e o Status no quadro. Consulta própria: se o GitHub não tiver esses campos,
+   * só esta parte falha.
+   */
+  async getIssueRelations(org: string, repo: string, issueNumber: number): Promise<IssueRelations> {
+    const fields = `
+      number title url state stateReason
+      repository { name owner { login } }
+      projectItems(first: 5) { nodes { fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } } } }
+    `;
+    const query = `
+      query($owner: String!, $repo: String!, $number: Int!) {
+        repository(owner: $owner, name: $repo) {
+          issue(number: $number) {
+            parent { ${fields} }
+            subIssuesSummary { total completed }
+            subIssues(first: 50) { nodes { ${fields} } }
+            blockedBy(first: 20) { nodes { ${fields} } }
+            blocking(first: 20) { nodes { ${fields} } }
+          }
+        }
+      }
+    `;
+    const response: any = await this.octokit.graphql(query, { owner: org, repo, number: issueNumber });
+    const issue = response?.repository?.issue;
+    const toRelated = (n: any): RelatedIssue | null => n && ({
+      number: n.number,
+      title: n.title,
+      url: n.url,
+      owner: n.repository?.owner?.login ?? org,
+      repo: n.repository?.name ?? repo,
+      state: n.state === 'CLOSED' ? 'CLOSED' : 'OPEN',
+      stateReason: n.stateReason ?? undefined,
+      status: (n.projectItems?.nodes ?? []).map((i: any) => i?.fieldValueByName?.name).find(Boolean),
+    });
+    return {
+      parent: toRelated(issue?.parent),
+      children: (issue?.subIssues?.nodes ?? []).map(toRelated).filter(Boolean) as RelatedIssue[],
+      blockedBy: (issue?.blockedBy?.nodes ?? []).map(toRelated).filter(Boolean) as RelatedIssue[],
+      blocking: (issue?.blocking?.nodes ?? []).map(toRelated).filter(Boolean) as RelatedIssue[],
+      total: issue?.subIssuesSummary?.total ?? 0,
+      completed: issue?.subIssuesSummary?.completed ?? 0,
+    };
   }
 
   async getIssueDetails(org: string, repo: string, issueNumber: number) {

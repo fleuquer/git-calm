@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, ClipboardCheck, Copy, Crop, GitBranch, Loader2, Maximize2, ScanText, Wrench, X } from 'lucide-react';
+import { Check, ClipboardCheck, Copy, Crop, GitBranch, Globe, Loader2, Maximize2, NotebookPen, ScanText, Wrench, X } from 'lucide-react';
+import { requestNewNote } from '../services/noteDraft';
+import { useDevToolsBridge } from '../hooks/useDevToolsBridge';
 import { attachDevToolsFrame, callDevTools, detachDevToolsFrame, getDevToolsBridgeState, startDevToolsBridge } from '../services/devtoolsBridge';
 import { DEVTOOLS_URL } from '../services/devtoolsConfig';
 import { suggestTools, type ToolSuggestion } from '../utils/devtoolsDetect';
@@ -24,6 +26,37 @@ function formatValue(value: unknown): string {
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   return JSON.stringify(value, null, 2);
+}
+
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/** Resultado do devTools em texto legível (listas uma por linha, achados com nível e linha...) */
+function formatResult(fn: string, value: unknown): string {
+  // revisarSql: { achados: [{ nivel, linha, msg, trecho }], ... }
+  if (fn === 'revisarSql' && isObj(value) && Array.isArray(value.achados)) {
+    const achados = value.achados as Array<{ nivel?: string; linha?: number; msg?: string; trecho?: string }>;
+    if (!achados.length) return 'Nenhum problema encontrado.';
+    const icon: Record<string, string> = { erro: '✖', alerta: '⚠', info: 'ℹ' };
+    return achados.map(a => `${icon[a.nivel ?? ''] ?? '•'} linha ${a.linha ?? '?'}: ${a.msg ?? ''}${a.trecho ? `\n    ${a.trecho}` : ''}`).join('\n');
+  }
+  // tradução e ortografia: { texto, motor? | semSugestao? }
+  if ((fn === 'traduzir' || fn === 'corrigirOrtografia') && isObj(value) && typeof value.texto === 'string') {
+    const extra = fn === 'traduzir' && value.motor
+      ? `\n\n(traduzido por ${value.motor})`
+      : Array.isArray(value.semSugestao) && value.semSugestao.length ? `\n\n(${value.semSugestao.length} erro(s) sem sugestão)` : '';
+    return value.texto + extra;
+  }
+  if (Array.isArray(value)) {
+    if (!value.length) return '(nada encontrado)';
+    // contarValores: [[valor, quantidade], ...]
+    if (value.every(v => Array.isArray(v) && v.length === 2)) return value.map(([k, n]) => `${n}× ${k}`).join('\n');
+    if (value.every(v => typeof v === 'string' || typeof v === 'number')) return value.join('\n');
+  }
+  // objeto simples (ex.: formatos da data): "chave: valor" por linha
+  if (isObj(value) && Object.values(value).every(v => typeof v === 'string' || typeof v === 'number')) {
+    return Object.entries(value).map(([k, v]) => `${k}: ${v}`).join('\n');
+  }
+  return formatValue(value);
 }
 
 /** Parte da imagem, em frações (0 a 1) da largura e da altura */
@@ -267,12 +300,20 @@ export function SelectionTools({ onRefSearch }: { onRefSearch?: (query: string) 
   // Marcando a parte da imagem que tem o texto (arrastar sobre a imagem)
   const [crop, setCrop] = useState<CropTarget | null>(null);
 
+  const [recipes, setRecipes] = useState<string[]>([]);
+  const bridgeState = useDevToolsBridge();
+  /** A função existe no devTools aberto? (antes de ele responder, assume que sim) */
+  const available = useCallback((fn: string) => {
+    const b = getDevToolsBridgeState();
+    return !fn || b.status !== 'pronto' || b.funcoes.includes(fn);
+  }, []);
+
   const run = useCallback((tool: ToolSuggestion) => {
     const id = ++runSeq.current;
     setCopied(false);
     setResult({ state: 'loading', tool });
     callDevTools(tool.fn, ...tool.args)
-      .then(v => { if (runSeq.current === id) setResult({ state: 'ok', tool, text: formatValue(v) }); })
+      .then(v => { if (runSeq.current === id) setResult({ state: 'ok', tool, text: formatResult(tool.fn, v) }); })
       .catch((e: Error) => { if (runSeq.current === id) setResult({ state: 'erro', tool, message: e.message }); });
   }, []);
 
@@ -287,15 +328,21 @@ export function SelectionTools({ onRefSearch }: { onRefSearch?: (query: string) 
     const sel = readSelection(!anywhere);
     if (!sel || sel.text.trim().length < 2) return false;
     const tools = suggestTools(sel.text);
-    // calcula já a primeira reconhecida que o devTools sabe calcular (as só de tela esperam o clique)
-    const autoRun = tools.find(t => t.detected && !t.openOnly);
+    // calcula já a primeira reconhecida que o devTools sabe calcular (as só de tela e as que usam
+    // serviço de fora esperam o clique)
+    const autoRun = tools.find(t => t.detected && !t.openOnly && !t.external && available(t.fn));
+    // receitas salvas no devTools (podem ter mudado desde a última seleção)
+    const bridge = getDevToolsBridgeState();
+    if (bridge.status === 'pronto' && bridge.funcoes.includes('receitas')) {
+      callDevTools<string[]>('receitas').then(r => setRecipes(Array.isArray(r) ? r.filter(n => typeof n === 'string') : [])).catch(() => {});
+    }
     const r = sel.rect;
     setTextCopied(false);
     setAnchor({ text: sel.text.trim(), rect: { top: r.top, bottom: r.bottom, left: r.left, width: r.width }, tools });
     if (autoRun) run(autoRun);
     else { runSeq.current++; setResult({ state: 'idle' }); }
     return true;
-  }, [run]);
+  }, [run, available]);
 
   // Seleção com o mouse ou o teclado
   useEffect(() => {
@@ -470,8 +517,12 @@ export function SelectionTools({ onRefSearch }: { onRefSearch?: (query: string) 
 
   if (!anchor) return (imageButton || cropOverlay) ? <>{imageButton}{cropOverlay}</> : null;
 
-  // Reconhecidas primeiro, depois as que valem para qualquer texto: todas sempre à vista
-  const visible = anchor.tools;
+  // Reconhecidas primeiro, depois as que valem para qualquer texto: todas sempre à vista.
+  // Função que este devTools ainda não tem vira atalho para a tela dela; receitas salvas no fim.
+  const visible: ToolSuggestion[] = [
+    ...anchor.tools.map(t => (t.openOnly || bridgeState.status !== 'pronto' || bridgeState.funcoes.includes(t.fn) ? t : { ...t, openOnly: true })),
+    ...(anchor.text ? recipes.map(nome => ({ fn: 'receita', args: [nome, anchor.text], label: `Receita: ${nome}`, toolId: 'receitas', detected: false })) : []),
+  ];
   const current = result.state === 'idle' ? null : result.tool;
 
   const openInDevTools = (target?: ToolSuggestion) => {
@@ -523,6 +574,14 @@ export function SelectionTools({ onRefSearch }: { onRefSearch?: (query: string) 
           {textCopied ? <Check size={13} className="text-green-500" /> : <Copy size={13} />}
           {textCopied ? 'Copiado' : 'Copiar'}
         </button>
+        <button
+          onClick={() => { const text = anchor.text; close(); window.getSelection()?.removeAllRanges(); requestNewNote({ titulo: '', conteudo: text, daSelecao: true }); }}
+          title="Cria uma nota no devTools com o texto selecionado"
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+        >
+          <NotebookPen size={13} />
+          Criar nota
+        </button>
         {onRefSearch && (
           <button
             onClick={() => { const q = anchor.text; close(); window.getSelection()?.removeAllRanges(); onRefSearch(q); }}
@@ -546,7 +605,9 @@ export function SelectionTools({ onRefSearch }: { onRefSearch?: (query: string) 
             <button
               key={`${t.fn}-${t.label}`}
               onClick={() => (t.openOnly ? openInDevTools(t) : run(t))}
-              title={t.openOnly ? 'Abre a tela da ferramenta no devTools, com o texto selecionado copiado' : undefined}
+              title={t.openOnly
+                ? 'Abre a tela da ferramenta no devTools, com o texto selecionado copiado'
+                : t.external ? `Envia o texto selecionado para ${t.external}` : undefined}
               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border transition-colors ${
                 current?.fn === t.fn && current.label === t.label
                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
@@ -557,6 +618,7 @@ export function SelectionTools({ onRefSearch }: { onRefSearch?: (query: string) 
             >
               {t.label}
               {t.openOnly && <Maximize2 size={9} className="opacity-60" />}
+              {t.external && !t.openOnly && <Globe size={9} className="opacity-60" />}
             </button>
           ))}
         </div>

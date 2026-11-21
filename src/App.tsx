@@ -43,8 +43,14 @@ import { ReportBugMenu } from './components/ReportBugMenu';
 import { SelectionTools } from './components/SelectionTools';
 import { ShortcutsModal } from './components/ShortcutsModal';
 import { OrgConfigPrompt } from './components/OrgConfigPrompt';
+import { PinnedCardsSidebar } from './components/PinnedCardsSidebar';
+import { NewNoteDialog } from './components/NewNoteDialog';
+import { refreshPinned } from './utils/pinnedCards';
 import { applyOrgConfig, fetchOrgConfig, hasLocalTeamConfig, ORG_CONFIG_NOTICE_KEY, orgConfigAppliedMessage } from './utils/orgConfig';
-import { stopDevToolsBridge, setDevToolsToken } from './services/devtoolsBridge';
+import {
+  stopDevToolsBridge, setDevToolsToken, startDevToolsBridge, onDevToolsNotification, openDevToolsRoute,
+  devToolsWasUsed, devToolsNotificationsEnabled, type DevToolsNotification,
+} from './services/devtoolsBridge';
 import type { CardSearchBarHandle } from './components/CardSearchBar';
 import { usePendingMentions } from './hooks/usePendingMentions';
 import { getReworkColumns } from './utils/reworkColumns';
@@ -115,6 +121,7 @@ function App() {
     setSelectedCard(card);
     setIsCardModalOpen(true);
     setCardHistory(prev => recordCardView(prev, card));
+    refreshPinned(card);
   };
 
   // Cache do campo de status (lazy-fetched na primeira movimentação)
@@ -152,6 +159,9 @@ function App() {
 
   // Painel flutuante com as notas do devTools (Alt+N)
   const [isNotesPanelOpen, setIsNotesPanelOpen] = useState(false);
+  // Nota que o devTools ainda não cria pelo git-calm: o painel abre no editor dele com o rascunho
+  const [notesDraft, setNotesDraft] = useState<{ titulo: string; conteudo: string } | null>(null);
+  const [notesPanelKey, setNotesPanelKey] = useState(0);
 
   // Mapa de atalhos ("?"). Atalho novo: registre também em ShortcutsModal.
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
@@ -197,6 +207,37 @@ function App() {
   const [mainView, setMainView] = useState<'board' | 'dashboard' | 'devtools'>('board');
   // Token do git-calm compartilhado com o devTools (enviado pela ponte quando ele fica pronto)
   useEffect(() => { setDevToolsToken(token); }, [token]);
+
+  // Notificações do devTools (tarefa nova, card registrado...): o navegador bloqueia as dele dentro
+  // do git-calm, então ele pede para o git-calm exibir; o clique abre a tela certa na aba devTools.
+  const [devToolsToast, setDevToolsToast] = useState<DevToolsNotification | null>(null);
+  const openDevToolsAt = useCallback((rota: string) => {
+    setDevToolsToast(null);
+    setMainView('devtools');
+    if (rota) openDevToolsRoute(rota);
+  }, []);
+  useEffect(() => {
+    if (!token) return;
+    // quem já usa o devTools: a ponte fica ligada em segundo plano para receber as notificações dele
+    const timer = devToolsWasUsed() && devToolsNotificationsEnabled() ? setTimeout(startDevToolsBridge, 5000) : undefined;
+    const off = onDevToolsNotification(n => {
+      if (!devToolsNotificationsEnabled()) return;
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        try {
+          const notif = new Notification(n.titulo, { body: n.corpo, icon: `${window.location.origin}/favicon.svg` });
+          notif.onclick = () => { window.focus(); openDevToolsAt(n.rota); notif.close(); };
+          return;
+        } catch { /* cai no aviso dentro do app */ }
+      }
+      setDevToolsToast(n);
+    });
+    return () => { clearTimeout(timer); off(); };
+  }, [token, openDevToolsAt]);
+  useEffect(() => {
+    if (!devToolsToast) return;
+    const t = setTimeout(() => setDevToolsToast(null), 15000);
+    return () => clearTimeout(t);
+  }, [devToolsToast]);
 
 
   // Estado para menu de opções do header
@@ -1453,6 +1494,21 @@ function App() {
       <SelectionTools onRefSearch={openRefSearch} />
       <ShortcutsModal isOpen={isShortcutsOpen} onClose={closeShortcuts} />
       <OrgConfigPrompt token={token} org={org} />
+      {devToolsToast && (
+        <div role="status" className="fixed z-[500] bottom-24 right-4 w-[min(360px,calc(100vw-2rem))] flex items-start gap-3 px-4 py-3 rounded-xl bg-gray-900 text-white text-sm shadow-2xl">
+          <Wrench size={16} className="text-teal-300 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="font-medium">{devToolsToast.titulo}</p>
+            {devToolsToast.corpo && <p className="text-xs text-gray-300 mt-0.5 break-words">{devToolsToast.corpo}</p>}
+            <div className="flex gap-3 mt-2 text-xs">
+              {devToolsToast.rota && (
+                <button onClick={() => openDevToolsAt(devToolsToast.rota)} className="text-teal-300 hover:text-teal-200 font-medium">Abrir no devTools</button>
+              )}
+              <button onClick={() => setDevToolsToast(null)} className="text-gray-400 hover:text-white">Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
       {orgConfigNotice && (
         <div role="status" className="fixed z-[500] bottom-12 left-1/2 -translate-x-1/2 w-max max-w-[min(640px,calc(100vw-2rem))] flex items-center gap-3 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm shadow-2xl">
           <Check size={16} className="text-green-400 shrink-0" />
@@ -1461,7 +1517,18 @@ function App() {
         </div>
       )}
 
-      <DevToolsNotesPanel isOpen={isNotesPanelOpen} onClose={() => setIsNotesPanelOpen(false)} devToolsTabOpen={mainView === 'devtools'} />
+      <DevToolsNotesPanel
+        key={notesPanelKey}
+        isOpen={isNotesPanelOpen}
+        onClose={() => { setIsNotesPanelOpen(false); setNotesDraft(null); }}
+        devToolsTabOpen={mainView === 'devtools'}
+        draft={notesDraft}
+      />
+      <NewNoteDialog
+        currentCard={isCardModalOpen && selectedCard ? { number: selectedCard.number, title: selectedCard.title, url: selectedCard.url } : null}
+        onFallback={d => { setNotesDraft(d); setNotesPanelKey(k => k + 1); setIsNotesPanelOpen(true); }}
+      />
+      <PinnedCardsSidebar onOpen={handleOpenFromHistory} current={isCardModalOpen ? selectedCard : null} />
 
       <RefSearchModal
         isOpen={refSearch.open}

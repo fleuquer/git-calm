@@ -9,6 +9,8 @@ interface DevToolsNotesPanelProps {
   onClose: () => void;
   /** A aba devTools está na tela: criar/editar notas por ela, sem abrir outra cópia */
   devToolsTabOpen?: boolean;
+  /** Abrir direto no editor de notas do devTools, com título e conteúdo à mão para colar */
+  draft?: { titulo: string; conteudo: string } | null;
 }
 
 function normalize(text: string) {
@@ -56,15 +58,34 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+function CopyLabeled({ label, text }: { label: string; text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }).catch(() => { /* sem permissão */ });
+      }}
+      title={text}
+      className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+    >
+      {copied ? <Check size={12} /> : <Copy size={12} />}
+      {copied ? 'Copiado' : label}
+    </button>
+  );
+}
+
 /**
  * Painel flutuante com as notas do devTools, para consultar (ou criar, na tela do
  * próprio devTools) sem sair do card. Atalho: Alt+N.
  */
-export function DevToolsNotesPanel({ isOpen, onClose, devToolsTabOpen }: DevToolsNotesPanelProps) {
+export function DevToolsNotesPanel({ isOpen, onClose, devToolsTabOpen, draft }: DevToolsNotesPanelProps) {
   const bridge = useDevToolsBridge();
   const [query, setQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [editingRequested, setEditing] = useState(false);
+  const [editingRequested, setEditing] = useState(!!draft);
   // Com a aba devTools na tela, a edição é feita nela (uma cópia do devTools por vez)
   const editing = editingRequested && !devToolsTabOpen;
   const searchRef = useRef<HTMLInputElement>(null);
@@ -179,6 +200,15 @@ export function DevToolsNotesPanel({ isOpen, onClose, devToolsTabOpen }: DevTool
         </div>
       </div>
 
+      {editing && draft && (
+        <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 text-xs">
+          <span className="flex-1 min-w-0 text-amber-800 dark:text-amber-200">
+            Crie a nota abaixo: <b className="font-medium">Nova nota</b> e cole o título e o conteúdo.
+          </span>
+          <CopyLabeled label="Título" text={draft.titulo} />
+          <CopyLabeled label="Conteúdo" text={draft.conteudo} />
+        </div>
+      )}
       {editing ? (
         <iframe
           ref={editorRef}

@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, ExternalLink, Calendar, Clock, User, Plus, Send, Trash2, GitBranch, GitCommit, Link as LinkIcon, ArrowUpDown, ChevronDown, ChevronUp, CheckCircle, FileText, AlertCircle, MessageSquare, Clipboard, Eye, ArrowRight, Maximize2, Minimize2, Bold, Italic, Strikethrough, List, ListOrdered, Code, Code2, Quote, Minus, Link2 } from 'lucide-react';
+import { NotebookPen, Pin, X, ExternalLink, Calendar, Clock, User, Plus, Send, Trash2, GitBranch, GitCommit, Link as LinkIcon, ArrowUpDown, ChevronDown, ChevronUp, CheckCircle, FileText, AlertCircle, MessageSquare, Clipboard, Eye, ArrowRight, Maximize2, Minimize2, Bold, Italic, Strikethrough, List, ListOrdered, Code, Code2, Quote, Minus, Link2 } from 'lucide-react';
+import { togglePin, usePinnedCards } from '../utils/pinnedCards';
+import { sameIssue } from '../utils/cardHistory';
+import { requestNewNote } from '../services/noteDraft';
+import { CardRelations } from './CardRelations';
 import type { Assignee, ProjectCard, ProjectColumn } from '../types';
 import type { CommentTemplate } from '../types/commentTemplates';
 import { GitHubService } from '../services/github';
@@ -97,6 +101,7 @@ interface MilestoneInfo {
 }
 
 export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token, org, onUpdate, currentViewId, columns, onMoveCard, onOpenIssueLink, trail = [], onNavigateTrail, openingIssueLink, currentUser }) => {
+  const pins = usePinnedCards();
   const [details, setDetails] = useState<IssueDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'description' | 'timeline'>('description');
@@ -490,6 +495,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
   };
 
   if (!isOpen || !card) return null;
+  const pinned = pins.some(p => sameIssue(p, card));
 
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('pt-BR', {
@@ -709,6 +715,21 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => requestNewNote({ titulo: `#${card.number} ${card.title}`, conteudo: card.url, rotulo: 'Card' })}
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              title="Criar nota no devTools a partir deste card"
+            >
+              <NotebookPen size={16} className="text-gray-600 dark:text-gray-400" />
+            </button>
+            <button
+              onClick={() => togglePin(card)}
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              title={pinned ? 'Desafixar card' : 'Fixar card (fica na barra de fixados)'}
+              aria-pressed={pinned}
+            >
+              <Pin size={16} className={pinned ? 'text-amber-500 fill-amber-500' : 'text-gray-600 dark:text-gray-400'} />
+            </button>
             <a
               href={card.url}
               target="_blank"
@@ -1620,6 +1641,9 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                       </div>
                     </div>
                   </div>
+
+                  {/* Cards vinculados: pai e sub-issues (issue #12) */}
+                  <CardRelations key={`${card.repo}#${card.number}`} token={token} org={org} repo={card.repo} number={card.number} onOpen={onOpenIssueLink} />
 
                   {/* Assignees */}
                   <div>

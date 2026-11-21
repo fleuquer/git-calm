@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '0.1.8';
+export const CURRENT_VERSION = '0.1.9';
 export const VERSION_STORAGE_KEY = 'app_last_seen_version';
 
 export interface Change {
@@ -15,15 +15,31 @@ export interface VersionEntry {
 
 export const CHANGELOG: VersionEntry[] = [
   {
+    version: '0.1.9',
+    date: '2026-11-21',
+    label: '',
+    changes: [
+      { type: 'improvement', description: '"O que há de novo" já mostra as novidades do devTools na aba dele' },
+      { type: 'feat', description: 'Cards vinculados no card (issue #12): na aba Info aparecem o card pai, as sub-issues (com quantas estão concluídas) e as dependências (bloqueado por / bloqueia), com número, título, estado e Status no quadro; o clique abre o card no app'},
+      { type: 'feat', description: 'No quadro, card com vínculo mostra um ícone ao lado do número: sub-issues concluídas (ex.: 1/3) e, em vermelho, quando está bloqueado por um card ainda aberto; passar o mouse mostra o card pai, as sub-issues e as dependências' },
+      { type: 'feat', description: 'Caixinha do texto selecionado com as ferramentas novas do devTools calculando ali mesmo: revisar script SQL (UPDATE/DELETE sem WHERE, sem BEGIN/COMMIT...), anonimizar, extrair CPFs/CNPJs/e-mails/telefones, limpar texto colado, entidades HTML, formatos de uma data, tirar e contar repetidos de uma lista' },
+      { type: 'feat', description: 'Receitas salvas no devTools aparecem na caixinha e se aplicam ao texto selecionado' },
+      { type: 'feat', description: 'Traduzir, corrigir ortografia e consultar CNPJ na caixinha: como mandam o texto para um serviço de fora, só rodam no clique e o botão avisa para onde o texto vai' },
+      { type: 'feat', description: 'Notificações do devTools (issue nova nas tarefas, card registrado...) exibidas pelo git-calm, com o clique abrindo a tela certa na aba devTools; dá para desligar em Configurações › Notificações' },
+      { type: 'feat', description: 'Fixar cards: o alfinete no cabeçalho do card guarda ele numa barra lateral de fixados, no canto inferior esquerdo, que abre o card com um clique e recolhe para uma aba; recolhida, passar o mouse na aba mostra a barra até o mouse sair' },
+      { type: 'feat', description: 'Criar nota no devTools a partir de um card (título com número e título do card, e o link) ou de um texto selecionado (com a opção de incluir o link do card aberto)' },
+    ],
+  },
+  {
     version: '0.1.8',
     date: '2026-11-11',
     label: '',
     changes: [
       { type: 'improvement', description: 'Configurações › Backup mostra por que a configuração padrão da organização não chegou: token sem permissão para confirmar a organização, token do servidor sem acesso ao repositório de padrões ou arquivo da organização ainda não publicado' },
+      { type: 'improvement', description: 'A configuração padrão da organização inclui a visão compacta dos cards e o layout em lista; ao aplicar, o aviso diz em quais modos os cards ficaram e que dá para mudar no menu Opções' },
       { type: 'feat', description: 'Configuração padrão da organização: quem entra pela primeira vez já recebe as abas, mapeamentos, templates e demais configurações da equipe publicadas para a organização (só membros recebem), com o número do projeto preenchido no login' },
       { type: 'feat', description: 'Aviso ao abrir o git-calm quando a organização publica uma configuração padrão ou a atualiza, perguntando se a pessoa quer usar; "Agora não" vale só para aquela versão' },
       { type: 'feat', description: 'Em Configurações › Backup: aplicar ou atualizar com a configuração padrão da organização e gerar o arquivo da configuração da equipe para publicar' },
-      { type: 'improvement', description: 'A configuração padrão da organização inclui a visão compacta dos cards e o layout em lista; ao aplicar, o aviso diz em quais modos os cards ficaram e que dá para mudar no menu Opções' },
     ],
   },
   {

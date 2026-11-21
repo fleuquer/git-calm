@@ -1,6 +1,6 @@
 import React from 'react';
 import type { ProjectCard as ProjectCardType } from '../types';
-import { Clock, AlertCircle, XCircle, AlertTriangle, Wrench, Sparkles, MapPin, Calendar, UserX } from 'lucide-react';
+import { Clock, AlertCircle, XCircle, AlertTriangle, Wrench, Sparkles, MapPin, Calendar, UserX, GitFork, Ban } from 'lucide-react';
 import { convertGithubEmojis } from '../utils/emojiConverter';
 import { getLabelStyle } from '../utils/labelColors';
 import { normalizeTitleCase } from '../utils/titleCase';
@@ -327,6 +327,29 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
                 </span>
               </div>
             )}
+
+            {/* Vínculos no GitHub (pai, sub-issues, dependências): detalhes na aba Info do card */}
+            {card.relations && (() => {
+              const r = card.relations;
+              const lines = [
+                r.parent && `Card pai: #${r.parent.number} ${r.parent.title}`,
+                r.subTotal > 0 && `Sub-issues: ${r.subCompleted}/${r.subTotal} concluídas`,
+                r.blockedBy > 0 && `Bloqueado por ${r.blockedBy} card(s)${r.blockedByOpen ? `, ${r.blockedByOpen} ainda aberto(s)` : ', todos fechados'}`,
+                r.blocking > 0 && `Bloqueia ${r.blocking} card(s)`,
+              ].filter(Boolean);
+              return (
+                <span className="flex items-center gap-0.5 text-gray-400 dark:text-gray-500" title={`Cards vinculados\n${lines.join('\n')}`}>
+                  {r.blockedByOpen > 0
+                    ? <Ban size={12} className="text-red-500" />
+                    : <GitFork size={12} />}
+                  {r.subTotal > 0 && (
+                    <span className={`text-[10px] tabular-nums ${r.subCompleted === r.subTotal ? 'text-green-600 dark:text-green-500' : ''}`}>
+                      {r.subCompleted}/{r.subTotal}
+                    </span>
+                  )}
+                </span>
+              );
+            })()}
           </div>
 
           {/* Aging indicator (apenas ícone + texto colorido) */}

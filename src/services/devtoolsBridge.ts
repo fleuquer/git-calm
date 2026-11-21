@@ -92,6 +92,57 @@ let seq = 0;
 const pending = new Map<number, { ok: (v: unknown) => void; erro: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
 let readyWaiters: Array<() => void> = [];
 
+/** Notificação que o devTools pede para o git-calm exibir (o navegador bloqueia a dele no iframe) */
+export interface DevToolsNotification { titulo: string; corpo: string; rota: string }
+const notificationListeners = new Set<(n: DevToolsNotification) => void>();
+/** Tela do devTools para abrir assim que a aba devTools ficar pronta (clique numa notificação) */
+let pendingRoute = '';
+const NOTIFY_KEY = 'gitcalm:devtools:notificacoes';
+/** Já usou algo do devTools neste navegador (aba, notas, ferramentas): mantém a ponte ligada */
+const USED_KEY = 'gitcalm:devtools:usado';
+
+/** Exibir as notificações do devTools? (ligado por padrão) */
+export function devToolsNotificationsEnabled(): boolean {
+  try { return localStorage.getItem(NOTIFY_KEY) !== '0'; } catch { return true; }
+}
+
+export function setDevToolsNotificationsEnabled(on: boolean) {
+  try { localStorage.setItem(NOTIFY_KEY, on ? '1' : '0'); } catch { /* ignora */ }
+  if (state.status === 'pronto') sendNotifySetting();
+}
+
+/** Já usou o devTools aqui? Aí vale manter a ponte ligada para receber as notificações dele. */
+export function devToolsWasUsed(): boolean {
+  try { return localStorage.getItem(USED_KEY) === '1'; } catch { return false; }
+}
+
+function markUsed() {
+  try { localStorage.setItem(USED_KEY, '1'); } catch { /* ignora */ }
+}
+
+export function onDevToolsNotification(listener: (n: DevToolsNotification) => void) {
+  notificationListeners.add(listener);
+  return () => { notificationListeners.delete(listener); };
+}
+
+/** Abre uma tela do devTools (ex.: '/tarefas') na aba devTools, assim que ela estiver pronta. */
+export function openDevToolsRoute(rota: string) {
+  if (!rota.startsWith('/')) return;
+  pendingRoute = rota;
+  flushRoute();
+}
+
+function flushRoute() {
+  // só na cópia que está na tela (aba devTools), não na invisível
+  if (!pendingRoute || !externals.length || state.status !== 'pronto') return;
+  post({ type: 'gitcalm:abrir', tipo: 'gitcalm:abrir', rota: pendingRoute });
+  pendingRoute = '';
+}
+
+function sendNotifySetting() {
+  post({ type: 'gitcalm:notificacoes', tipo: 'gitcalm:notificacoes', ativo: devToolsNotificationsEnabled() });
+}
+
 function setState(patch: Partial<BridgeState>) {
   state = { ...state, ...patch };
   listeners.forEach(l => l());
@@ -117,6 +168,14 @@ function rejectPending(reason: string) {
 
 function onMessage(e: MessageEvent) {
   if (e.origin !== DEVTOOLS_ORIGIN) return;
+  // notificação pode vir de qualquer cópia do devTools que o git-calm abriu
+  const ours = [hosted, ...externals].some(f => f && e.source === f.contentWindow);
+  if (ours && e.data?.tipo === 'devtools:notificar') {
+    const d = e.data;
+    const n = { titulo: String(d.titulo ?? 'devTools'), corpo: String(d.corpo ?? ''), rota: typeof d.rota === 'string' ? d.rota : '' };
+    notificationListeners.forEach(l => l(n));
+    return;
+  }
   const frame = activeFrame();
   if (!frame || e.source !== frame.contentWindow) return;
   const d = e.data;
@@ -130,6 +189,8 @@ function onMessage(e: MessageEvent) {
     readyInfo.set(frame, info);
     markReady(info);
     if (token) sendToken();
+    sendNotifySetting();
+    flushRoute();
   } else if (d.tipo === 'devtools:notas') {
     const notas = sanitizeNotes(d.notas);
     try { localStorage.setItem(CACHE_KEY, JSON.stringify(notas)); } catch { /* cota cheia: segue só em memória */ }
@@ -158,6 +219,7 @@ function reactivate(frame: HTMLIFrameElement) {
   if (!info) { connect(frame); return; }
   markReady(info);
   post({ tipo: 'devtools:assinar' });
+  flushRoute();
 }
 
 /** Passa a conversar com `frame`: assina as notas quando ele carregar. */
@@ -201,6 +263,7 @@ function ensureListening() {
 export function startDevToolsBridge() {
   ensureListening();
   wanted = true;
+  markUsed();
   if (!externals.length && !hosted) mountHosted();
 }
 
@@ -222,6 +285,7 @@ export function refreshDevToolsBridge() {
  */
 export function attachDevToolsFrame(frame: HTMLIFrameElement) {
   ensureListening();
+  markUsed();
   if (externals.includes(frame)) return;
   removeHosted();
   externals.push(frame);

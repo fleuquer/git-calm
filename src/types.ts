@@ -29,6 +29,18 @@ export interface ProjectCard {
   lastEventActorAvatar?: string; // Avatar do usuário que fez a ação
   lastEventLoading?: boolean;
   repo?: string;
+  /** Resumo dos vínculos no GitHub (pai, sub-issues, dependências), para o ícone no quadro */
+  relations?: CardRelationsSummary;
+}
+
+export interface CardRelationsSummary {
+  parent?: { number: number; title: string };
+  subTotal: number;
+  subCompleted: number;
+  /** Total de cards que bloqueiam este (abertos e fechados) e quantos ainda estão abertos */
+  blockedBy: number;
+  blockedByOpen: number;
+  blocking: number;
 }
 
 export interface ProjectSingleSelectField {
