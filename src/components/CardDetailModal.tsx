@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { NotebookPen, Pin, X, ExternalLink, Calendar, Clock, User, Plus, Send, Trash2, GitBranch, GitCommit, Link as LinkIcon, ArrowUpDown, ChevronDown, ChevronUp, CheckCircle, FileText, AlertCircle, MessageSquare, Clipboard, Eye, ArrowRight, Maximize2, Minimize2, Bold, Italic, Strikethrough, List, ListOrdered, Code, Code2, Quote, Minus, Link2 } from 'lucide-react';
+import { ListChecks, NotebookPen, Pin, X, ExternalLink, Calendar, Clock, User, Plus, Send, Trash2, GitBranch, GitCommit, ArrowUpDown, ChevronDown, ChevronUp, CheckCircle, FileText, AlertCircle, MessageSquare, Clipboard, Eye, ArrowRight, Maximize2, Minimize2, Bold, Italic, Strikethrough, List, ListOrdered, Code, Code2, Quote, Minus, Link2 } from 'lucide-react';
 import { togglePin, usePinnedCards } from '../utils/pinnedCards';
 import { sameIssue } from '../utils/cardHistory';
 import { requestNewNote } from '../services/noteDraft';
 import { CardRelations } from './CardRelations';
+import { CardStepsPanel } from './CardStepsPanel';
+import { countTasks } from '../utils/taskProgress';
 import type { Assignee, ProjectCard, ProjectColumn } from '../types';
 import type { CommentTemplate } from '../types/commentTemplates';
 import { GitHubService } from '../services/github';
@@ -113,7 +115,9 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
   const [showLabelInput, setShowLabelInput] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [showPreview, setShowPreview] = useState(false);
-  const [activeSidebarTab, setActiveSidebarTab] = useState<'info' | 'branches' | 'links'>('info');
+  const [activeSidebarTab, setActiveSidebarTab] = useState<'info' | 'branches' | 'etapas'>('info');
+  // Descrição depois de mudar etapas pela aba Etapas (a do quadro só atualiza no próximo carregamento)
+  const [stepsBody, setStepsBody] = useState<{ key: string; body: string } | null>(null);
   const [branches, setBranches] = useState<BranchInfo[]>([]);
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
@@ -496,6 +500,9 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
 
   if (!isOpen || !card) return null;
   const pinned = pins.some(p => sameIssue(p, card));
+  const cardKey = `${card.repo ?? ''}#${card.number}`;
+  const currentBody = stepsBody?.key === cardKey ? stepsBody.body : card.body;
+  const stepsTasks = countTasks(currentBody);
 
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('pt-BR', {
@@ -1588,7 +1595,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
             <div className="flex border-b border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900/50 shrink-0">
               <button
                 onClick={() => setActiveSidebarTab('info')}
-                className={`flex-1 px-4 py-2 text-xs font-medium transition-colors ${
+                className={`flex-1 px-2 py-2 text-xs font-medium transition-colors ${
                   activeSidebarTab === 'info'
                     ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-b-2 border-blue-500'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
@@ -1599,26 +1606,30 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
               </button>
               <button
                 onClick={() => setActiveSidebarTab('branches')}
-                className={`flex-1 px-4 py-2 text-xs font-medium transition-colors ${
+                className={`flex-1 px-2 py-2 text-xs font-medium transition-colors ${
                   activeSidebarTab === 'branches'
                     ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-b-2 border-blue-500'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                 }`}
               >
-                <GitBranch size={14} className="inline mr-1" />
-                Branches
+                <Code2 size={14} className="inline mr-1" />
+                Código
               </button>
-              <button
-                onClick={() => setActiveSidebarTab('links')}
-                className={`flex-1 px-4 py-2 text-xs font-medium transition-colors ${
-                  activeSidebarTab === 'links'
-                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-b-2 border-blue-500'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                }`}
-              >
-                <LinkIcon size={14} className="inline mr-1" />
-                Links
-              </button>
+              {(stepsTasks || activeSidebarTab === 'etapas') && (
+                <button
+                  onClick={() => setActiveSidebarTab('etapas')}
+                  title={stepsTasks ? `${stepsTasks.done} de ${stepsTasks.total} etapas feitas` : 'Etapas'}
+                  className={`flex-1 px-2 py-2 text-xs font-medium transition-colors ${
+                    activeSidebarTab === 'etapas'
+                      ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-b-2 border-blue-500'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                  }`}
+                >
+                  <ListChecks size={14} className="inline mr-1" />
+                  Etapas
+                  {stepsTasks && <span className="ml-1 tabular-nums text-[10px] text-gray-400">{stepsTasks.done}/{stepsTasks.total}</span>}
+                </button>
+              )}
             </div>
 
             {/* Conteúdo da sidebar */}
@@ -1644,6 +1655,61 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
 
                   {/* Cards vinculados: pai e sub-issues (issue #12) */}
                   <CardRelations key={`${card.repo}#${card.number}`} token={token} org={org} repo={card.repo} number={card.number} onOpen={onOpenIssueLink} />
+
+                  {/* Milestone */}
+                  {!isLoadingLinks && milestone ? (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
+                        Milestone
+                      </h4>
+                      <a
+                        href={milestone.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block p-3 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 hover:border-blue-500 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <p className="text-sm font-normal text-gray-900 dark:text-gray-100">
+                            {milestone.title}
+                          </p>
+                          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                            milestone.state === 'OPEN'
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
+                          }`}>
+                            {milestone.state === 'OPEN' ? 'Aberto' : 'Fechado'}
+                          </span>
+                        </div>
+                        {milestone.description && (
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                            {milestone.description}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-4">
+                          {milestone.progressPercentage !== null && (
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
+                                <span>Progresso</span>
+                                <span>{milestone.progressPercentage}%</span>
+                              </div>
+                              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                                <div
+                                  className="bg-blue-600 h-1.5 rounded-full transition-all"
+                                  style={{ width: `${milestone.progressPercentage}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {milestone.dueOn && (
+                            <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
+                              <Calendar size={12} />
+                              <span>{new Date(milestone.dueOn).toLocaleDateString('pt-BR')}</span>
+                            </div>
+                          )}
+                        </div>
+                      </a>
+                    </div>
+                  ) : null}
 
                   {/* Assignees */}
                   <div>
@@ -2004,69 +2070,6 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                       </p>
                     )}
                   </div>
-                </div>
-              )}
-
-              {activeSidebarTab === 'links' && (
-                <div className="space-y-4">
-                  {/* Milestone */}
-                  {isLoadingLinks ? (
-                    <div className="flex items-center justify-center py-4">
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-                    </div>
-                  ) : milestone ? (
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
-                        Milestone
-                      </h4>
-                      <a
-                        href={milestone.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block p-3 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 hover:border-blue-500 transition-colors"
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <p className="text-sm font-normal text-gray-900 dark:text-gray-100">
-                            {milestone.title}
-                          </p>
-                          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                            milestone.state === 'OPEN'
-                              ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                              : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300'
-                          }`}>
-                            {milestone.state === 'OPEN' ? 'Aberto' : 'Fechado'}
-                          </span>
-                        </div>
-                        {milestone.description && (
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
-                            {milestone.description}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-4">
-                          {milestone.progressPercentage !== null && (
-                            <div className="flex-1">
-                              <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                <span>Progresso</span>
-                                <span>{milestone.progressPercentage}%</span>
-                              </div>
-                              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                                <div
-                                  className="bg-blue-600 h-1.5 rounded-full transition-all"
-                                  style={{ width: `${milestone.progressPercentage}%` }}
-                                />
-                              </div>
-                            </div>
-                          )}
-                          {milestone.dueOn && (
-                            <div className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
-                              <Calendar size={12} />
-                              <span>{new Date(milestone.dueOn).toLocaleDateString('pt-BR')}</span>
-                            </div>
-                          )}
-                        </div>
-                      </a>
-                    </div>
-                  ) : null}
 
                   {/* Pull Requests */}
                   <div>
@@ -2119,61 +2122,25 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                       </p>
                     )}
                   </div>
-
-                  {/* Repositório Info */}
-                  <div>
-                    <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-3">
-                      Repositório
-                    </h4>
-                    {branches.length > 0 ? (
-                      // Se encontrou branches, mostrar os repos únicos das branches
-                      <div className="space-y-2">
-                        {Array.from(new Set(branches.map(b => b.repo))).map((repoName) => (
-                          <a
-                            key={repoName}
-                            href={`https://github.com/${org}/${repoName}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 hover:border-blue-500 transition-colors"
-                          >
-                            <ExternalLink size={14} className="text-gray-600 dark:text-gray-400 shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-gray-900 dark:text-gray-100">
-                                {org}/{repoName}
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                Ver no GitHub
-                              </p>
-                            </div>
-                          </a>
-                        ))}
-                      </div>
-                    ) : card.repo ? (
-                      // Se não encontrou branches mas o card tem repo, mostrar o repo do card
-                      <a
-                        href={`https://github.com/${org}/${card.repo}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 hover:border-blue-500 transition-colors"
-                      >
-                        <ExternalLink size={14} className="text-gray-600 dark:text-gray-400 shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-gray-900 dark:text-gray-100">
-                            {org}/{card.repo}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Ver no GitHub
-                          </p>
-                        </div>
-                      </a>
-                    ) : (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 italic">
-                        Nenhum repositório identificado
-                      </p>
-                    )}
-                  </div>
                 </div>
               )}
+
+              {activeSidebarTab === 'etapas' && card.repo && (
+                <CardStepsPanel
+                  key={cardKey}
+                  token={token}
+                  org={org}
+                  repo={card.repo}
+                  number={card.number}
+                  initialBody={currentBody}
+                  onChanged={body => {
+                    setStepsBody({ key: cardKey, body });
+                    loadDetails(); // descrição do card
+                    onUpdate?.(); // progresso no quadro
+                  }}
+                />
+              )}
+
             </div>
           </div>
         </div>

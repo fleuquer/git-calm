@@ -890,6 +890,17 @@ export class GitHubService {
     };
   }
 
+  /** Descrição da issue em Markdown, como está agora no GitHub */
+  async getIssueBody(org: string, repo: string, issueNumber: number): Promise<string> {
+    const { data } = await this.octokit.rest.issues.get({ owner: org, repo, issue_number: issueNumber });
+    return data.body ?? '';
+  }
+
+  /** Grava a descrição da issue (Markdown) */
+  async updateIssueBody(org: string, repo: string, issueNumber: number, body: string): Promise<void> {
+    await this.octokit.rest.issues.update({ owner: org, repo, issue_number: issueNumber, body });
+  }
+
   async getIssueDetails(org: string, repo: string, issueNumber: number) {
     try {
       // Buscar issue completa com comentários e eventos

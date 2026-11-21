@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ProjectCard as ProjectCardType } from '../types';
-import { Clock, AlertCircle, XCircle, AlertTriangle, Wrench, Sparkles, MapPin, Calendar, UserX, GitFork, Ban } from 'lucide-react';
+import { Clock, AlertCircle, XCircle, AlertTriangle, Wrench, Sparkles, MapPin, Calendar, UserX, GitFork, Ban, ListChecks } from 'lucide-react';
+import { countTasks } from '../utils/taskProgress';
 import { convertGithubEmojis } from '../utils/emojiConverter';
 import { getLabelStyle } from '../utils/labelColors';
 import { normalizeTitleCase } from '../utils/titleCase';
@@ -22,6 +23,21 @@ interface Props {
   draggable?: boolean;
   onDragStart?: () => void;
   columnStatus?: string;
+}
+
+/** Progresso no estilo do GitHub: "1/2" e uma barrinha; o percentual fica na dica */
+function ProgressChip({ icon, done, total, title, alert }: { icon: React.ReactNode; done: number; total: number; title: string; alert?: boolean }) {
+  const pct = Math.round((done / total) * 100);
+  const complete = done === total;
+  return (
+    <span className="flex items-center gap-1 text-gray-400 dark:text-gray-500" title={`${title} (${pct}%)`}>
+      {icon}
+      <span className={`text-[10px] tabular-nums ${complete ? 'text-green-600 dark:text-green-500' : alert ? 'text-red-500' : ''}`}>{done}/{total}</span>
+      <span className="w-6 h-1 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+        <span className={`block h-full ${complete ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${pct}%` }} />
+      </span>
+    </span>
+  );
 }
 
 // Mapa de ícones para tipos de issue (formato: "1-Erro", "2-Problema", etc)
@@ -222,6 +238,8 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
   const maxAvatars = 3;
   const shownAvatars = hasNoAssignees ? 1 : Math.min(card.assignees.length, maxAvatars);
   // No compacto o card é baixo: avatar menor para não encostar no tempo do canto superior
+  // Tarefas marcáveis na descrição do card
+  const tasks = React.useMemo(() => countTasks(card.body), [card.body]);
   const avatarPx = compactView ? 24 : 28;
   const avatarSizeClass = compactView ? 'w-6 h-6' : 'w-7 h-7';
   const avatarStep = listLayout ? avatarPx + 2 : avatarPx - 6; // quadrados lado a lado / redondos sobrepostos
@@ -327,29 +345,6 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
                 </span>
               </div>
             )}
-
-            {/* Vínculos no GitHub (pai, sub-issues, dependências): detalhes na aba Info do card */}
-            {card.relations && (() => {
-              const r = card.relations;
-              const lines = [
-                r.parent && `Card pai: #${r.parent.number} ${r.parent.title}`,
-                r.subTotal > 0 && `Sub-issues: ${r.subCompleted}/${r.subTotal} concluídas`,
-                r.blockedBy > 0 && `Bloqueado por ${r.blockedBy} card(s)${r.blockedByOpen ? `, ${r.blockedByOpen} ainda aberto(s)` : ', todos fechados'}`,
-                r.blocking > 0 && `Bloqueia ${r.blocking} card(s)`,
-              ].filter(Boolean);
-              return (
-                <span className="flex items-center gap-0.5 text-gray-400 dark:text-gray-500" title={`Cards vinculados\n${lines.join('\n')}`}>
-                  {r.blockedByOpen > 0
-                    ? <Ban size={12} className="text-red-500" />
-                    : <GitFork size={12} />}
-                  {r.subTotal > 0 && (
-                    <span className={`text-[10px] tabular-nums ${r.subCompleted === r.subTotal ? 'text-green-600 dark:text-green-500' : ''}`}>
-                      {r.subCompleted}/{r.subTotal}
-                    </span>
-                  )}
-                </span>
-              );
-            })()}
           </div>
 
           {/* Aging indicator (apenas ícone + texto colorido) */}
@@ -376,6 +371,31 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
           <h4 className="text-sm font-normal text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-snug mb-1.5 line-clamp-3" title={displayTitle !== card.title ? card.title : undefined}>
             {displayTitle}
           </h4>
+          {/* Vínculos e progresso: linha própria, para não apertar o cabeçalho (cidade, tipo) */}
+          {(card.relations || tasks) && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1.5">
+              {/* Vínculos no GitHub (pai, sub-issues, dependências): detalhes na aba Info do card */}
+              {card.relations && (() => {
+                const r = card.relations;
+                const lines = [
+                  r.parent && `Card pai: #${r.parent.number} ${r.parent.title}`,
+                  r.subTotal > 0 && `Sub-issues: ${r.subCompleted}/${r.subTotal} concluídas`,
+                  r.blockedBy > 0 && `Bloqueado por ${r.blockedBy} card(s)${r.blockedByOpen ? `, ${r.blockedByOpen} ainda aberto(s)` : ', todos fechados'}`,
+                  r.blocking > 0 && `Bloqueia ${r.blocking} card(s)`,
+                ].filter(Boolean);
+                const icon = r.blockedByOpen > 0 ? <Ban size={12} className="text-red-500" /> : <GitFork size={12} />;
+                const tip = `Cards vinculados\n${lines.join('\n')}`;
+                return r.subTotal > 0
+                  ? <ProgressChip icon={icon} done={r.subCompleted} total={r.subTotal} title={tip} />
+                  : <span className="flex items-center text-gray-400 dark:text-gray-500" title={tip}>{icon}</span>;
+              })()}
+
+              {/* Lista de tarefas na descrição (checkboxes), como o "1 de 2 tarefas" do GitHub */}
+              {tasks && (
+                <ProgressChip icon={<ListChecks size={12} />} done={tasks.done} total={tasks.total} title={`Tarefas da descrição: ${tasks.done} de ${tasks.total} feitas`} />
+              )}
+            </div>
+          )}
         </div>
 
         {/* Conteúdo expansível (oculto em modo compacto, visível ao hover) */}

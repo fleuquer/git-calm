@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '0.1.9';
+export const CURRENT_VERSION = '0.1.10';
 export const VERSION_STORAGE_KEY = 'app_last_seen_version';
 
 export interface Change {
@@ -14,6 +14,17 @@ export interface VersionEntry {
 }
 
 export const CHANGELOG: VersionEntry[] = [
+  {
+    version: '0.1.10',
+    date: '2026-11-21',
+    label: '',
+    changes: [
+      { type: 'feat', description: 'Aba Etapas no card (quando a descrição tem tarefas): marcar, desmarcar, adicionar e remover etapas sem editar a descrição; cada mudança lê a descrição atual no GitHub antes de gravar, para não apagar o que outra pessoa mudou' },
+      { type: 'feat', description: 'Progresso no card do quadro, como no GitHub: sub-issues concluídas e tarefas marcadas na descrição (checkboxes), com "1/2", uma barrinha e o percentual ao passar o mouse' },
+      { type: 'improvement', description: 'Ícone de vínculo e progresso numa linha própria abaixo do título do card, para não apertar o cabeçalho com tipo e cidade' },
+      { type: 'improvement', description: 'Abas do card reorganizadas: "Branches" virou "Código", com branches, commits e pull requests juntos; o milestone foi para a aba Info (só quando existe); a aba Links saiu' },
+    ],
+  },
   {
     version: '0.1.9',
     date: '2026-11-21',
