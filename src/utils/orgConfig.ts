@@ -1,3 +1,5 @@
+import { createOctokit } from '../services/github';
+
 /**
  * Configuração padrão da organização: a parte "da equipe" das configurações (abas,
  * mapeamentos, templates...), publicada por alguém da organização e aplicada para quem
@@ -25,6 +27,7 @@ export const TEAM_KEYS = [
   'github_rework_columns',
   'github_blocked_columns',
   'psi_release_link_repo',
+  'gitcalm_glossary',
 ] as const;
 
 /** Nomes para mostrar na tela */
@@ -44,6 +47,7 @@ export const TEAM_KEY_LABELS: Record<(typeof TEAM_KEYS)[number], string> = {
   github_rework_columns: 'Colunas de retrabalho',
   github_blocked_columns: 'Colunas bloqueadas',
   psi_release_link_repo: 'Repositório dos links de release',
+  gitcalm_glossary: 'Glossário da equipe',
 };
 
 const APP = 'git-calm';
@@ -58,9 +62,12 @@ export interface OrgConfigFile {
   [key: string]: unknown;
 }
 
+/** Onde o padrão da organização fica (repositório privado de padrões e caminho do arquivo) */
+export interface OrgConfigOrigin { repo: string; caminho: string }
+
 export type OrgConfigResult =
-  | { status: 'ok'; versao: string; config: OrgConfigFile }
-  | { status: 'nenhuma'; motivo?: string }
+  | { status: 'ok'; versao: string; config: OrgConfigFile; origem?: OrgConfigOrigin }
+  | { status: 'nenhuma'; motivo?: string; origem?: OrgConfigOrigin; semArquivo?: boolean }
   | { status: 'erro'; message: string };
 
 /** Busca a configuração padrão da organização (só membros recebem). */
@@ -73,12 +80,56 @@ export async function fetchOrgConfig(token: string, org: string): Promise<OrgCon
   if (!resp || resp.status === 404 || !resp.headers.get('content-type')?.includes('application/json')) {
     return { status: 'nenhuma' };
   }
-  const data = (await resp.json().catch(() => null)) as { status?: string; versao?: string; config?: OrgConfigFile; erro?: string; motivo?: string } | null;
+  const data = (await resp.json().catch(() => null)) as {
+    status?: string; versao?: string; config?: OrgConfigFile; erro?: string; motivo?: string; origem?: OrgConfigOrigin; semArquivo?: boolean;
+  } | null;
   if (!resp.ok) return { status: 'erro', message: data?.erro ?? `Erro ${resp.status} ao buscar a configuração da organização` };
+  const origem = data?.origem && /^[\w.-]+\/[\w.-]+$/.test(data.origem.repo) ? data.origem : undefined;
   if (data?.status === 'ok' && data.config && typeof data.config === 'object') {
-    return { status: 'ok', versao: data.versao ?? '', config: data.config };
+    return { status: 'ok', versao: data.versao ?? '', config: data.config, origem };
   }
-  return { status: 'nenhuma', motivo: data?.motivo };
+  return { status: 'nenhuma', motivo: data?.motivo, origem, semArquivo: data?.semArquivo };
+}
+
+/** A pessoa pode gravar no repositório de padrões? (só quem tem escrita lá publica) */
+export async function canPublishOrgConfig(token: string, origem: OrgConfigOrigin): Promise<boolean> {
+  try {
+    const { data } = await createOctokit(token).request('GET /repos/{owner}/{repo}', {
+      owner: origem.repo.split('/')[0],
+      repo: origem.repo.split('/')[1],
+    });
+    return !!(data as { permissions?: { push?: boolean } }).permissions?.push;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Publica a configuração da equipe deste navegador como padrão da organização, gravando o
+ * arquivo no repositório de padrões com o token da própria pessoa. Devolve a versão nova.
+ * versaoAtual: sha do arquivo que a pessoa viu (o GitHub recusa se alguém mudou nesse meio tempo).
+ */
+export async function publishOrgConfig(
+  token: string, org: string, origem: OrgConfigOrigin, projectNumber: number | undefined, versaoAtual?: string,
+): Promise<string> {
+  const json = JSON.stringify(buildOrgConfigFile(org, projectNumber), null, 2) + '\n';
+  const bytes = new TextEncoder().encode(json);
+  let bin = '';
+  bytes.forEach(b => { bin += String.fromCharCode(b); });
+  const [owner, repo] = origem.repo.split('/');
+  // caminho com "/" literal (a biblioteca codificaria a barra como %2F)
+  const path = origem.caminho.split('/').map(encodeURIComponent).join('/');
+  const { data } = await createOctokit(token).request(`PUT /repos/{owner}/{repo}/contents/${path}`, {
+    owner,
+    repo,
+    message: `git-calm: configuração padrão da ${org}`,
+    content: btoa(bin),
+    ...(versaoAtual ? { sha: versaoAtual } : {}),
+  });
+  const nova = (data as { content?: { sha?: string } }).content?.sha ?? '';
+  // quem publicou já está com essa versão: não precisa do aviso de "configuração atualizada"
+  if (nova) localStorage.setItem(appliedKey(org), nova);
+  return nova;
 }
 
 /** Este navegador já tem alguma configuração da equipe feita à mão? */

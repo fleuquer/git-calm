@@ -1434,6 +1434,7 @@ function App() {
         onNotificationSettingsChange={handleNotificationSettings}
         activitySettings={activitySettings}
         onActivitySettingsChange={handleActivitySettings}
+        boardCards={columns.flatMap(c => c.cards)}
         savePreferencesEnabled={savePreferencesEnabled}
         onSavePreferencesEnabledChange={handleSavePreferencesToggle}
       />

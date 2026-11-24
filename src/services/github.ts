@@ -65,6 +65,19 @@ export interface RelatedIssue {
   status?: string;
 }
 
+/** Issue encontrada na busca da organização (para sugerir relacionados) */
+export interface SearchedIssue {
+  number: number;
+  title: string;
+  body: string;
+  url: string;
+  owner: string;
+  repo: string;
+  state: 'OPEN' | 'CLOSED';
+  stateReason?: string;
+  labels: Array<{ name: string }>;
+}
+
 export interface IssueRelations {
   parent: RelatedIssue | null;
   children: RelatedIssue[];
@@ -888,6 +901,71 @@ export class GitHubService {
       total: issue?.subIssuesSummary?.total ?? 0,
       completed: issue?.subIssuesSummary?.completed ?? 0,
     };
+  }
+
+  /**
+   * Issues da organização que citam algum dos termos (busca do GitHub, abertas e fechadas),
+   * para sugerir cards relacionados (issue #11). Devolve só o necessário para comparar.
+   */
+  async searchOrgIssues(org: string, terms: string[], limit = 30): Promise<SearchedIssue[]> {
+    const words = terms.map(t => t.replace(/["()]/g, '').trim()).filter(Boolean).slice(0, 5);
+    if (!words.length) return [];
+    const q = `org:${org} is:issue (${words.join(' OR ')})`;
+    const { data } = await this.octokit.request('GET /search/issues', { q, per_page: limit });
+    return (data.items ?? []).map((i: any) => {
+      const [owner, repo] = String(i.repository_url ?? '').split('/').slice(-2);
+      return {
+        number: i.number,
+        title: i.title ?? '',
+        body: i.body ?? '',
+        url: i.html_url,
+        owner,
+        repo,
+        state: i.state === 'closed' ? 'CLOSED' : 'OPEN',
+        stateReason: i.state_reason ?? undefined,
+        labels: (i.labels ?? []).map((l: any) => ({ name: typeof l === 'string' ? l : l?.name ?? '' })).filter((l: any) => l.name),
+      } as SearchedIssue;
+    });
+  }
+
+  /**
+   * Cria um vínculo entre dois cards no GitHub:
+   * - 'filho': o outro vira sub-issue deste
+   * - 'pai': este vira sub-issue do outro
+   * - 'bloqueado-por': este fica bloqueado pelo outro
+   * - 'bloqueia': o outro fica bloqueado por este
+   */
+  async linkIssues(
+    kind: 'filho' | 'pai' | 'bloqueado-por' | 'bloqueia',
+    current: { owner: string; repo: string; number: number },
+    other: { owner: string; repo: string; number: number },
+  ): Promise<void> {
+    const ids: any = await this.octokit.graphql(`
+      query($o1: String!, $r1: String!, $n1: Int!, $o2: String!, $r2: String!, $n2: Int!) {
+        a: repository(owner: $o1, name: $r1) { issue(number: $n1) { id } }
+        b: repository(owner: $o2, name: $r2) { issue(number: $n2) { id } }
+      }`, { o1: current.owner, r1: current.repo, n1: current.number, o2: other.owner, r2: other.repo, n2: other.number });
+    const me = ids?.a?.issue?.id;
+    const it = ids?.b?.issue?.id;
+    if (!me || !it) throw new Error('Card não encontrado no GitHub');
+    if (kind === 'filho' || kind === 'pai') {
+      const [parent, child] = kind === 'filho' ? [me, it] : [it, me];
+      await this.octokit.graphql(`mutation($p: ID!, $c: ID!) { addSubIssue(input: { issueId: $p, subIssueId: $c }) { issue { id } } }`, { p: parent, c: child });
+    } else {
+      const [blocked, blocking] = kind === 'bloqueado-por' ? [me, it] : [it, me];
+      await this.octokit.graphql(`mutation($i: ID!, $b: ID!) { addBlockedBy(input: { issueId: $i, blockingIssueId: $b }) { issue { id } } }`, { i: blocked, b: blocking });
+    }
+  }
+
+  /** Repositórios da organização com a descrição (para sugerir o glossário da equipe) */
+  async listOrgRepoDescriptions(org: string): Promise<Array<{ name: string; description: string }>> {
+    const out: Array<{ name: string; description: string }> = [];
+    for (let page = 1; page <= 5; page++) {
+      const res = await this.octokit.repos.listForOrg({ org, per_page: 100, page, type: 'all' });
+      out.push(...res.data.map((r: any) => ({ name: r.name, description: r.description ?? '' })));
+      if (res.data.length < 100) break;
+    }
+    return out;
   }
 
   /** Descrição da issue em Markdown, como está agora no GitHub */

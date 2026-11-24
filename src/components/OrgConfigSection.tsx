@@ -11,6 +11,7 @@ import {
   TEAM_KEYS,
   type OrgConfigResult,
 } from '../utils/orgConfig';
+import { PublishOrgConfigButton } from './PublishOrgConfigButton';
 
 interface Props {
   token: string;
@@ -101,6 +102,13 @@ export function OrgConfigSection({ token, org, projectNumber }: Props) {
             {applied ? 'Atualizar com a configuração da organização' : `Aplicar a configuração da ${org}`}
           </button>
         )}
+        <PublishOrgConfigButton
+          token={token}
+          org={org}
+          projectNumber={projectNumber}
+          result={result}
+          onPublished={() => setTimeout(() => { setResult('carregando'); setReload(n => n + 1); }, 1500)}
+        />
         <button
           onClick={() => downloadOrgConfigFile(org, projectNumber)}
           title="Gera o arquivo com a parte da equipe da sua configuração atual, para publicar como padrão"
@@ -129,9 +137,13 @@ export function OrgConfigSection({ token, org, projectNumber }: Props) {
           </p>
           <p className="font-medium pt-1">Para publicar ou atualizar o padrão:</p>
           <ol className="list-decimal pl-5 space-y-1">
-            <li>Deixe a sua configuração como quer que a equipe receba e clique em <b>Gerar arquivo da configuração da equipe</b>.</li>
-            <li>Coloque o arquivo baixado (<code>{org.toLowerCase()}.json</code>) na pasta <code>orgs/</code> do repositório privado de configurações padrão e faça o commit.</li>
-            <li>Quem entrar pela primeira vez já recebe; quem já usa vê aqui a opção de atualizar.</li>
+            <li>Deixe a sua configuração como quer que a equipe receba.</li>
+            <li>
+              Quem tem permissão de escrita no repositório de padrões vê o botão <b>Publicar como padrão da equipe</b>, que grava
+              direto. Sem essa permissão, use <b>Gerar arquivo da configuração da equipe</b> e coloque o arquivo
+              (<code>{org.toLowerCase()}.json</code>) na pasta <code>orgs/</code> desse repositório.
+            </li>
+            <li>Quem entrar pela primeira vez já recebe; quem já usa recebe o aviso de configuração atualizada.</li>
           </ol>
         </div>
       )}

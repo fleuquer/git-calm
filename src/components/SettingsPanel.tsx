@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, User, Palette, Layers, Settings as SettingsIcon, Building, Hash, Key, Calendar, GitBranch, MessageSquare, Download, Upload, CheckCircle, AlertCircle, HardDrive, Type, Package, Bell, AtSign, UserCheck, Volume2, VolumeX, Play, Monitor, History, SlidersHorizontal, Check } from 'lucide-react';
+import { BookA, X, User, Palette, Layers, Settings as SettingsIcon, Building, Hash, Key, Calendar, GitBranch, MessageSquare, Download, Upload, CheckCircle, AlertCircle, HardDrive, Type, Package, Bell, AtSign, UserCheck, Volume2, VolumeX, Play, Monitor, History, SlidersHorizontal, Check } from 'lucide-react';
 import { ViewManagerModal } from './ViewManagerModal';
 import { RepoMappingConfig } from './RepoMappingConfig';
 import { TemplateManager } from './TemplateManager';
-import type { ViewTab } from '../types';
+import type { ProjectCard, ViewTab } from '../types';
 import type { NotificationSettings } from '../hooks/useGithubNotifications';
 import type { ActivityMonitorSettings } from './ActivityLogButton';
 import { themes } from '../themes';
 import { GitHubService } from '../services/github';
 import { exportConfig, importConfig } from '../utils/configBackup';
 import { OrgConfigSection } from './OrgConfigSection';
+import { GlossarySetting } from './GlossarySetting';
 import { DevToolsNotificationsSetting } from './DevToolsNotificationsSetting';
 import { playNotificationSound } from '../utils/notificationSounds';
 import { getSystemNotificationPermission, requestSystemNotificationPermission } from '../utils/systemNotifications';
@@ -68,6 +69,8 @@ interface Props {
   activitySettings: ActivityMonitorSettings;
   onActivitySettingsChange: (settings: ActivityMonitorSettings) => void;
   // Persistência de preferências de UI (ex: ordenação de cards)
+  /** Cards do quadro (sugestão do glossário) */
+  boardCards?: ProjectCard[];
   savePreferencesEnabled: boolean;
   onSavePreferencesEnabledChange: (enabled: boolean) => void;
 }
@@ -91,9 +94,10 @@ export const SettingsPanel: React.FC<Props> = ({
   activitySettings,
   onActivitySettingsChange,
   savePreferencesEnabled,
+  boardCards,
   onSavePreferencesEnabledChange,
 }) => {
-  const [activeTab, setActiveTab] = useState<'account' | 'theme' | 'views' | 'templates' | 'mappings' | 'release' | 'notifications' | 'backup'>('account');
+  const [activeTab, setActiveTab] = useState<'account' | 'theme' | 'views' | 'templates' | 'mappings' | 'glossary' | 'release' | 'notifications' | 'backup'>('account');
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [accountInfo, setAccountInfo] = useState<any>(null);
@@ -174,6 +178,10 @@ export const SettingsPanel: React.FC<Props> = ({
           />
         </div>
       );
+    }
+
+    if (activeTab === 'glossary') {
+      return <GlossarySetting token={token} org={org} projectNumber={projectNumber} boardCards={boardCards ?? []} />;
     }
 
     if (activeTab === 'release') {
@@ -919,6 +927,17 @@ export const SettingsPanel: React.FC<Props> = ({
             >
               <SettingsIcon size={16} />
               Mapeamentos
+            </button>
+            <button
+              onClick={() => setActiveTab('glossary')}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+                activeTab === 'glossary'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+              }`}
+            >
+              <BookA size={16} />
+              Glossário
             </button>
             <button
               onClick={() => setActiveTab('release')}

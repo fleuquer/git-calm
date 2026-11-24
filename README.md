@@ -48,8 +48,9 @@ e nada de pessoal entra (token, tema, notificações, menções, históricos).
 
 1. Crie um repositório **privado** para os padrões (ex.: `minha-conta/git-calm-presets`).
 2. No git-calm, em **Configurações › Backup › Configuração da organização**, clique em
-   **Gerar arquivo da configuração da equipe** e coloque o arquivo baixado em `orgs/<organizacao>.json`
-   nesse repositório.
+   **Publicar como padrão da equipe**: o arquivo `orgs/<organizacao>.json` é gravado direto nesse
+   repositório com o seu token (o botão só aparece para quem tem permissão de escrita nele). Sem essa
+   permissão, use **Gerar arquivo da configuração da equipe** e faça o commit do arquivo à mão.
 3. Crie um token *fine-grained* com acesso só a esse repositório e permissão **Contents: Read-only**.
 4. Na Vercel (projeto do git-calm › Settings › Environment Variables), cadastre
    `GITCALM_PRESETS_REPO` (ex.: `minha-conta/git-calm-presets`) e `GITCALM_PRESETS_TOKEN` (o token)

@@ -59,7 +59,12 @@ export async function GET(request: Request): Promise<Response> {
   const repo = process.env.GITCALM_PRESETS_REPO ?? '';
   const presetsToken = process.env.GITCALM_PRESETS_TOKEN ?? '';
   // Recurso não configurado neste servidor: o app segue como se não houvesse padrão
-  if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !presetsToken) return json(200, { status: 'nenhuma' });
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !presetsToken) {
+    return json(200, {
+      status: 'nenhuma',
+      motivo: 'este servidor não tem o repositório de padrões configurado (variáveis GITCALM_PRESETS_REPO e GITCALM_PRESETS_TOKEN). Em desenvolvimento, coloque as duas no arquivo .env.local e reinicie o npm run dev.',
+    });
+  }
 
   const membro = await isMember(userToken, org);
   if (membro === 'token-invalido') return json(401, { erro: 'Token do GitHub inválido' });
@@ -71,12 +76,15 @@ export async function GET(request: Request): Promise<Response> {
     });
   }
 
-  // Daqui em diante é membro: pode ver o motivo exato quando algo da publicação está errado
+  // Daqui em diante é membro: pode ver o motivo exato quando algo da publicação está errado.
+  // origem: onde o padrão fica, para quem tem permissão de escrita lá publicar pelo git-calm
+  // (a gravação usa o token da própria pessoa; quem não tem acesso ao repositório não consegue)
   const caminho = `orgs/${org.toLowerCase()}.json`;
+  const origem = { repo, caminho };
   const arq = await gh(`/repos/${repo}/contents/${caminho}`, presetsToken);
   if (!arq) return json(502, { erro: 'Não foi possível ler as configurações padrão' });
   if (arq.status === 401) {
-    return json(200, { status: 'nenhuma', motivo: 'O token do servidor (GITCALM_PRESETS_TOKEN) é inválido ou venceu.' });
+    return json(200, { status: 'nenhuma', motivo: 'O token do servidor (GITCALM_PRESETS_TOKEN) é inválido ou venceu.', origem });
   }
   if (arq.status === 404) {
     // arquivo que não existe ou repositório que o token do servidor não enxerga?
@@ -84,7 +92,7 @@ export async function GET(request: Request): Promise<Response> {
     const motivo = r?.ok
       ? `Ainda não há o arquivo ${caminho} em ${repo}.`
       : `O token do servidor (GITCALM_PRESETS_TOKEN) não acessa o repositório ${repo}: confira o nome em GITCALM_PRESETS_REPO e se o token inclui esse repositório com Contents: Read.`;
-    return json(200, { status: 'nenhuma', motivo });
+    return json(200, { status: 'nenhuma', motivo, origem, semArquivo: !!r?.ok });
   }
   if (!arq.ok) return json(502, { erro: `Configurações padrão indisponíveis (GitHub ${arq.status})` });
 
@@ -92,7 +100,7 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const config = JSON.parse(Buffer.from(d?.content ?? '', 'base64').toString('utf-8'));
     // sha do arquivo: muda a cada commit, serve para avisar que há versão nova
-    return json(200, { status: 'ok', versao: d?.sha ?? '', config });
+    return json(200, { status: 'ok', versao: d?.sha ?? '', config, origem });
   } catch {
     return json(502, { erro: 'O arquivo de configuração padrão não é um JSON válido' });
   }

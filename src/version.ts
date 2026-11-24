@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '0.1.9';
+export const CURRENT_VERSION = '0.1.10';
 export const VERSION_STORAGE_KEY = 'app_last_seen_version';
 
 export interface Change {
@@ -14,6 +14,19 @@ export interface VersionEntry {
 }
 
 export const CHANGELOG: VersionEntry[] = [
+  {
+    version: '0.1.10',
+    date: '2026-11-24',
+    label: '',
+    changes: [
+      { type: 'improvement', description: 'Cards relacionados mais certeiros: nomes técnicos em comum (tabela, arquivo, rota) pesam mais, e campos do quadro (Sistema, Área, cidade, repositório) reforçam a semelhança e aparecem como "mesmo Sistema: …"' },
+      { type: 'improvement', description: 'Configurações › Backup explica quando o servidor está sem o repositório de padrões configurado, em vez de dizer que a organização não tem padrão' },
+      { type: 'feat', description: 'Cards possivelmente relacionados (issue #11): na aba Info, o card mostra os cards parecidos pelo título e pela descrição, do quadro e da organização (abertos e fechados), com os termos em comum e o aviso de possível duplicidade; dá para vincular (sub-issue, card pai, dependência) ou ignorar a sugestão' },
+      { type: 'feat', description: 'Glossário da equipe (Configurações › Glossário): palavras que querem dizer a mesma coisa, como "DAM = guia = boleto", para os cards relacionados ligarem cards com vocabulário diferente; entra na configuração padrão da organização' },
+      { type: 'feat', description: 'Glossário inicial: "Sugerir a partir dos cards" procura siglas definidas no texto, siglas com as mesmas iniciais de uma expressão e jeitos diferentes de escrever a mesma palavra, nos cards do quadro e na descrição dos repositórios; você marca o que entra' },
+      { type: 'feat', description: 'Publicar como padrão da equipe direto pelo git-calm (Backup e Glossário), sem gerar arquivo e subir à mão; só aparece para quem tem permissão de escrita no repositório de padrões' },
+    ],
+  },
   {
     version: '0.1.9',
     date: '2026-11-23',

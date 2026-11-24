@@ -4,6 +4,7 @@ import { togglePin, usePinnedCards } from '../utils/pinnedCards';
 import { sameIssue } from '../utils/cardHistory';
 import { requestNewNote } from '../services/noteDraft';
 import { CardRelations } from './CardRelations';
+import { RelatedSuggestions } from './RelatedSuggestions';
 import { CardStepsPanel } from './CardStepsPanel';
 import { countTasks } from '../utils/taskProgress';
 import type { Assignee, ProjectCard, ProjectColumn } from '../types';
@@ -118,6 +119,9 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
   const [activeSidebarTab, setActiveSidebarTab] = useState<'info' | 'branches' | 'etapas'>('info');
   // Descrição depois de mudar etapas pela aba Etapas (a do quadro só atualiza no próximo carregamento)
   const [stepsBody, setStepsBody] = useState<{ key: string; body: string } | null>(null);
+  // Cards já vinculados (não sugerir de novo) e recarga da seção depois de vincular um sugerido
+  const [linkedKeys, setLinkedKeys] = useState<Set<string>>(new Set());
+  const [relationsVersion, setRelationsVersion] = useState(0);
   const [branches, setBranches] = useState<BranchInfo[]>([]);
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [isLoadingBranches, setIsLoadingBranches] = useState(false);
@@ -503,6 +507,7 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
   const cardKey = `${card.repo ?? ''}#${card.number}`;
   const currentBody = stepsBody?.key === cardKey ? stepsBody.body : card.body;
   const stepsTasks = countTasks(currentBody);
+  const boardCards = (columns ?? []).flatMap(c => c.cards);
 
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString('pt-BR', {
@@ -1654,7 +1659,12 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                   </div>
 
                   {/* Cards vinculados: pai e sub-issues (issue #12) */}
-                  <CardRelations key={`${card.repo}#${card.number}`} token={token} org={org} repo={card.repo} number={card.number} onOpen={onOpenIssueLink} />
+                  <CardRelations
+                    key={`${card.repo}#${card.number}#${relationsVersion}`}
+                    token={token} org={org} repo={card.repo} number={card.number}
+                    onOpen={onOpenIssueLink}
+                    onLoaded={setLinkedKeys}
+                  />
 
                   {/* Milestone */}
                   {!isLoadingLinks && milestone ? (
@@ -1710,6 +1720,18 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                       </a>
                     </div>
                   ) : null}
+
+                  {/* Possivelmente relacionados: parecidos pelo texto, para vincular (issue #11) */}
+                  <RelatedSuggestions
+                    key={`sug-${card.repo}#${card.number}`}
+                    token={token}
+                    org={org}
+                    card={card}
+                    boardCards={boardCards}
+                    linked={linkedKeys}
+                    onOpen={onOpenIssueLink}
+                    onLinked={() => setRelationsVersion(v => v + 1)}
+                  />
 
                   {/* Assignees */}
                   <div>

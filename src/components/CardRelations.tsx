@@ -10,6 +10,8 @@ interface Props {
   number: number;
   /** Abre o card vinculado no próprio app */
   onOpen?: (ref: IssueLinkRef) => void;
+  /** Cards já vinculados, como "repo#número" (para não sugerir de novo como relacionados) */
+  onLoaded?: (keys: Set<string>) => void;
 }
 
 /**
@@ -17,16 +19,22 @@ interface Props {
  * (bloqueado por / bloqueia), com número, título, estado e Status no quadro. Só aparece
  * quando há vínculo.
  */
-export function CardRelations({ token, org, repo, number, onOpen }: Props) {
+export function CardRelations({ token, org, repo, number, onOpen, onLoaded }: Props) {
   const [data, setData] = useState<IssueRelations | null | 'carregando' | 'erro'>('carregando');
 
   useEffect(() => {
     if (!repo) return;
     let alive = true;
     new GitHubService(token).getIssueRelations(org, repo, number)
-      .then(r => { if (alive) setData(r); })
+      .then(r => {
+        if (!alive) return;
+        setData(r);
+        const all = [r.parent, ...r.children, ...r.blockedBy, ...r.blocking].filter(Boolean) as RelatedIssue[];
+        onLoaded?.(new Set(all.map(i => `${i.repo.toLowerCase()}#${i.number}`)));
+      })
       .catch(() => { if (alive) setData('erro'); });
     return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, org, repo, number]);
 
   // Sem vínculo (ou sem como consultar): não ocupa espaço
