@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '0.1.11';
+export const CURRENT_VERSION = '0.1.12';
 export const VERSION_STORAGE_KEY = 'app_last_seen_version';
 
 export interface Change {
@@ -14,6 +14,15 @@ export interface VersionEntry {
 }
 
 export const CHANGELOG: VersionEntry[] = [
+  {
+    version: '0.1.12',
+    date: '2026-11-27',
+    label: '',
+    changes: [
+      { type: 'feat', description: 'Quem está online: no canto inferior direito, como nos chats, aparece quem da organização está com o git-calm aberto agora, e a lista mostra em que tela cada um está ou qual card tem aberto; clicar numa pessoa mostra só os cards dela' },
+      { type: 'feat', description: 'Só membros da organização veem a lista, conferido pelo GitHub; quem não quiser aparecer desliga "Aparecer como online" em Configurações › Conta' },
+    ],
+  },
   {
     version: '0.1.11',
     date: '2026-11-27',

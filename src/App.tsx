@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePreferenceState, clearFilterPreferences } from './hooks/usePreferenceState';
+import { usePresence } from './hooks/usePresence';
+import { OnlinePeople } from './components/OnlinePeople';
 import { LoginForm } from './components/LoginForm';
 import { ProjectColumn } from './components/ProjectColumn';
 import { ViewTabs } from './components/ViewTabs';
@@ -209,6 +211,14 @@ function App() {
   }, []);
   // Tela aberta (quadro, dashboard, devTools): volta na mesma ao recarregar
   const [mainView, setMainView] = usePreferenceState<'board' | 'dashboard' | 'devtools'>('tela', 'board');
+  // Quem da organização está com o git-calm aberto (e em que tela ou card)
+  const presence = usePresence(
+    token,
+    org,
+    user?.login ? { login: user.login, nome: user.name || user.login, avatar: user.avatar_url } : null,
+    mainView === 'board' ? 'quadro' : mainView,
+    isCardModalOpen ? selectedCard?.number : undefined,
+  );
   // Token do git-calm compartilhado com o devTools (enviado pela ponte quando ele fica pronto)
   useEffect(() => { setDevToolsToken(token); }, [token]);
 
@@ -1412,6 +1422,14 @@ function App() {
           </div>
         )}
       </main>
+
+      {/* Quem da organização está com o git-calm aberto (canto inferior direito) */}
+      <OnlinePeople
+        people={presence.people}
+        status={presence.status}
+        myLogin={user?.login}
+        onPick={login => { setMainView('board'); if (activeAssigneeFilter !== login) handleToggleAssigneeFilter(login); }}
+      />
 
       {/* Footer */}
       <footer className="shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-1.5 px-4 flex items-center justify-between">

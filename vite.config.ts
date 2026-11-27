@@ -4,12 +4,14 @@ import removeConsole from 'vite-plugin-remove-console'
 import type { Plugin } from 'vite'
 import { GET as imagem } from './api/imagem'
 import { GET as configOrg } from './api/config-org'
+import { GET as presenca } from './api/presenca'
 
 // Em dev, atende as funções de api/ como a Vercel faz em produção
 function apiDev(): Plugin {
   const rotas: Record<string, (r: Request) => Promise<Response>> = {
     '/api/imagem': imagem,
     '/api/config-org': configOrg,
+    '/api/presenca': presenca,
   }
   return {
     name: 'gitcalm-api-dev',
@@ -31,7 +33,8 @@ function apiDev(): Plugin {
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   // Variáveis GITCALM_* do .env.local ficam disponíveis para as funções de api/ em dev
-  for (const [k, v] of Object.entries(loadEnv(mode, process.cwd(), 'GITCALM_'))) process.env[k] ??= v
+  // (não usa ??=: uma variável que estava vazia ao abrir o npm run dev precisa ser preenchida depois)
+  for (const [k, v] of Object.entries(loadEnv(mode, process.cwd(), 'GITCALM_'))) if (!process.env[k]) process.env[k] = v
   return {
   plugins: [react(), removeConsole(), apiDev()],
   base: '/',

@@ -13,47 +13,15 @@
  *
  * O token do usuário só é usado para conferir a organização no GitHub: não é guardado nem logado.
  */
-const GH = 'https://api.github.com';
-
-function json(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'private, no-store' },
-  });
-}
-
-function gh(path: string, token: string, accept = 'application/vnd.github+json') {
-  return fetch(`${GH}${path}`, {
-    headers: { authorization: `Bearer ${token}`, accept, 'user-agent': 'git-calm', 'x-github-api-version': '2022-11-28' },
-  }).catch(() => null);
-}
-
-/** O dono do token é membro (ativo) da organização? */
-async function isMember(token: string, org: string): Promise<'sim' | 'nao' | 'token-invalido'> {
-  // Exige read:org (pedido pelo git-calm); funciona também para quem tem a participação privada
-  const m = await gh(`/user/memberships/orgs/${org}`, token);
-  if (m?.status === 401) return 'token-invalido';
-  if (m?.ok) {
-    const d = (await m.json().catch(() => null)) as { state?: string } | null;
-    return d?.state === 'active' ? 'sim' : 'nao';
-  }
-  // Sem read:org (ex.: token fine-grained): membro vê a lista de membros da organização
-  const u = await gh('/user', token);
-  if (u?.status === 401) return 'token-invalido';
-  const login = u?.ok ? ((await u.json().catch(() => null)) as { login?: string } | null)?.login : undefined;
-  if (!login) return 'nao';
-  const r = await gh(`/orgs/${org}/members/${login}`, token);
-  return r?.status === 204 ? 'sim' : 'nao';
-}
+import { bearer, gh, isMember, isSameOrigin, json, ORG_RE } from './_github.js';
 
 export async function GET(request: Request): Promise<Response> {
-  const site = request.headers.get('sec-fetch-site');
-  if (site && site !== 'same-origin') return json(403, { erro: 'Uso permitido só pelo git-calm' });
+  if (!isSameOrigin(request)) return json(403, { erro: 'Uso permitido só pelo git-calm' });
 
   const org = (new URL(request.url).searchParams.get('org') ?? '').trim();
-  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(org)) return json(400, { erro: 'Organização inválida' });
+  if (!ORG_RE.test(org)) return json(400, { erro: 'Organização inválida' });
 
-  const userToken = (request.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+  const userToken = bearer(request);
   if (!userToken) return json(401, { erro: 'Token do GitHub ausente' });
 
   const repo = process.env.GITCALM_PRESETS_REPO ?? '';

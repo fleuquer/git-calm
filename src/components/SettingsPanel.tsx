@@ -12,6 +12,7 @@ import { exportConfig, importConfig } from '../utils/configBackup';
 import { OrgConfigSection } from './OrgConfigSection';
 import { GlossarySetting } from './GlossarySetting';
 import { DevToolsNotificationsSetting } from './DevToolsNotificationsSetting';
+import { PresenceSetting } from './PresenceSetting';
 import { playNotificationSound } from '../utils/notificationSounds';
 import { getSystemNotificationPermission, requestSystemNotificationPermission } from '../utils/systemNotifications';
 import { FONT_SIZES, FONT_FAMILIES, getFontSize, getFontFamily, saveFontSize, saveFontFamily, type FontSizeId, type FontFamilyId } from '../utils/fontSettings';
@@ -728,6 +729,8 @@ export const SettingsPanel: React.FC<Props> = ({
                       )}
                     </>
                   )}
+
+                  <PresenceSetting />
 
                   {/* Botão Sair */}
                   <div className="col-span-full pt-4">
