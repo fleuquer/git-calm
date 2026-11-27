@@ -20,6 +20,8 @@ import { convertGithubEmojis } from '../utils/emojiConverter';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getLabelStyle } from '../utils/labelColors';
+import { CardViewersNotice } from './CardViewers';
+import { setPresenceEditing } from '../services/presence';
 
 interface Props {
   card: ProjectCard | null;
@@ -388,6 +390,12 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
   };
   const [selectedTemplate, setSelectedTemplate] = useState<CommentTemplate | null>(null);
   const [templateData, setTemplateData] = useState<Record<string, any>>({});
+  // Avisa quem mais está com o card aberto que estou escrevendo um comentário
+  const writingComment = showCommentEditor && (!!newComment.trim() || Object.values(templateData).some(v => !!String(v ?? '').trim()));
+  useEffect(() => {
+    setPresenceEditing('comentario', writingComment ? 'escrevendo um comentário' : null);
+    return () => setPresenceEditing('comentario', null);
+  }, [writingComment]);
   const [availableTemplates, setAvailableTemplates] = useState<CommentTemplate[]>([]);
   const [showTemplateForm, setShowTemplateForm] = useState(true); // Controla visibilidade do formulário
 
@@ -759,6 +767,9 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
             </button>
           </div>
         </div>
+
+        {/* Quem mais está com este card aberto, e se está editando */}
+        <CardViewersNotice repo={card.repo} number={card.number} className="px-6 pt-2 shrink-0" />
 
         {/* Layout principal */}
         <div className="flex flex-1 overflow-hidden">

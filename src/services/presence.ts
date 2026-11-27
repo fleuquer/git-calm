@@ -24,6 +24,10 @@ interface PresenceMeta extends PresenceMe {
   tela: string;
   /** Card aberto, se houver */
   card?: number;
+  /** Card aberto como "repositório#número" (números se repetem entre repositórios) */
+  cardKey?: string;
+  /** O que está editando no card aberto (ex.: "escrevendo um comentário") */
+  editando?: string;
   /** Quando abriu o git-calm (ms) */
   desde: number;
 }
@@ -32,6 +36,8 @@ export interface OnlinePerson extends PresenceMe {
   ausente: boolean;
   tela: string;
   card?: number;
+  cardKey?: string;
+  editando?: string;
   desde: number;
   /** Quantas abas a pessoa tem abertas */
   abas: number;
@@ -59,6 +65,29 @@ export function onPresenceVisibleChange(cb: () => void): () => void {
     window.removeEventListener(VISIBLE_EVENT, cb);
     window.removeEventListener('storage', cb);
   };
+}
+
+// ── O que estou editando (comentário, etapas...) ─────────────────────────────
+// Cada lugar que edita avisa por uma chave própria; vale o primeiro que estiver editando.
+const editing = new Map<string, string>();
+const editingListeners = new Set<() => void>();
+let editingSnapshot: string | undefined;
+
+export function setPresenceEditing(source: string, label: string | null): void {
+  if (label) editing.set(source, label); else editing.delete(source);
+  const next = editing.values().next().value as string | undefined;
+  if (next === editingSnapshot) return;
+  editingSnapshot = next;
+  editingListeners.forEach(l => l());
+}
+
+export function getPresenceEditing(): string | undefined {
+  return editingSnapshot;
+}
+
+export function onPresenceEditingChange(cb: () => void): () => void {
+  editingListeners.add(cb);
+  return () => { editingListeners.delete(cb); };
 }
 
 // ── Conexão ─────────────────────────────────────────────────────────────────
@@ -90,6 +119,9 @@ function toPeople(state: Record<string, PresenceMeta[]>): OnlinePerson[] {
       ausente: ativas.length === 0,
       tela: ref.tela,
       card: ref.card,
+      cardKey: ref.cardKey,
+      // editando em qualquer aba conta
+      editando: metas.find(m => m.editando && m.cardKey === ref.cardKey)?.editando,
       desde: Math.min(...metas.map(m => m.desde)),
       abas: metas.length,
     });
@@ -97,9 +129,20 @@ function toPeople(state: Record<string, PresenceMeta[]>): OnlinePerson[] {
   return people;
 }
 
+/** Onde a pessoa está: tela, card aberto e o que está editando nele */
+export interface PresenceWhere {
+  tela: string;
+  card?: number;
+  cardKey?: string;
+  editando?: string;
+}
+
+/** "repositório#número", para achar o mesmo card entre pessoas */
+export const presenceCardKey = (repo: string | undefined, number: number) => `${(repo ?? '').toLowerCase()}#${number}`;
+
 export interface PresenceConnection {
-  /** Atualiza a tela ou o card anunciados */
-  update(info: { tela: string; card?: number }): void;
+  /** Atualiza a tela, o card ou a edição anunciados */
+  update(info: PresenceWhere): void;
   close(): void;
 }
 
@@ -107,8 +150,7 @@ export function connectPresence(opts: {
   githubToken: string;
   org: string;
   me: PresenceMe;
-  tela: string;
-  card?: number;
+  where: PresenceWhere;
   onPeople: (people: OnlinePerson[]) => void;
   onStatus: (status: PresenceStatus, detail?: string) => void;
 }): PresenceConnection {
@@ -119,8 +161,7 @@ export function connectPresence(opts: {
   const meta: PresenceMeta = {
     ...opts.me,
     ausente: document.visibilityState === 'hidden',
-    tela: opts.tela,
-    card: opts.card,
+    ...opts.where,
     desde: Date.now(),
   };
 
@@ -177,9 +218,8 @@ export function connectPresence(opts: {
 
   return {
     update(info) {
-      if (meta.tela === info.tela && meta.card === info.card) return;
-      meta.tela = info.tela;
-      meta.card = info.card;
+      if (meta.tela === info.tela && meta.card === info.card && meta.cardKey === info.cardKey && meta.editando === info.editando) return;
+      Object.assign(meta, { tela: info.tela, card: info.card, cardKey: info.cardKey, editando: info.editando });
       track();
     },
     close() {

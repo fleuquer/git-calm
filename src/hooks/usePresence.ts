@@ -1,45 +1,65 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   connectPresence,
+  getPresenceEditing,
   getPresenceVisible,
+  onPresenceEditingChange,
   onPresenceVisibleChange,
+  presenceCardKey,
   type OnlinePerson,
   type PresenceConnection,
   type PresenceMe,
   type PresenceStatus,
+  type PresenceWhere,
 } from '../services/presence';
 
 /**
  * Simulação para ver a tela sem ninguém mais online: só em desenvolvimento (npm run dev),
  * abrindo o git-calm com ?simular-online no endereço. Nunca entra no site publicado.
+ * Com ?simular-online=<repositório>#<número> (ex.: ?simular-online=arr-web%23123), as pessoas
+ * simuladas ficam vendo e editando esse card.
  */
-const SIMULAR = import.meta.env.DEV && new URLSearchParams(window.location.search).has('simular-online');
+const SIMULAR_PARAM = import.meta.env.DEV ? new URLSearchParams(window.location.search).get('simular-online') : null;
+const SIMULAR = SIMULAR_PARAM !== null;
 const SIMULADOS_DESDE = Date.now();
 function simulated(): OnlinePerson[] {
+  const [repo, num] = (SIMULAR_PARAM ?? '').split('#');
+  const card = Number(num) || 123;
+  const cardKey = presenceCardKey(repo || 'repo-simulado', card);
   const p = (login: string, nome: string, extra: Partial<OnlinePerson>, minAtras: number): OnlinePerson => ({
     login, nome, avatar: `https://github.com/identicons/${login}.png`,
     ausente: false, tela: 'quadro', abas: 1, desde: SIMULADOS_DESDE - minAtras * 60_000, ...extra,
   });
   return [
-    p('simulado-ana', 'Ana (simulada)', { card: 123 }, 42),
-    p('simulado-bruno', 'Bruno (simulado)', { tela: 'dashboard' }, 8),
-    p('simulado-carla', 'Carla (simulada)', { abas: 2 }, 95),
+    p('simulado-ana', 'Ana (simulada)', { card, cardKey }, 42),
+    p('simulado-bruno', 'Bruno (simulado)', { card, cardKey, editando: 'escrevendo um comentário' }, 8),
+    p('simulado-carla', 'Carla (simulada)', { abas: 2, tela: 'dashboard' }, 95),
     p('simulado-diego', 'Diego (simulado)', { ausente: true }, 180),
   ];
 }
 
 /** Quem da organização está com o git-calm aberto (ver services/presence.ts) */
-export function usePresence(githubToken: string, org: string, me: PresenceMe | null, tela: string, card?: number) {
+export function usePresence(
+  githubToken: string,
+  org: string,
+  me: PresenceMe | null,
+  tela: string,
+  card?: { number: number; repo?: string },
+) {
   const visible = useSyncExternalStore(onPresenceVisibleChange, getPresenceVisible);
+  const editando = useSyncExternalStore(onPresenceEditingChange, getPresenceEditing);
   const [people, setPeople] = useState<OnlinePerson[]>([]);
   const [status, setStatus] = useState<PresenceStatus>('desligado');
   const conn = useRef<PresenceConnection | null>(null);
+
+  const cardNumber = card?.number;
+  const cardKey = card ? presenceCardKey(card.repo, card.number) : undefined;
   // a tela e o card mudam muito: vão por referência, sem reconectar
-  const where = useRef({ tela, card });
+  const where = useRef<PresenceWhere>({ tela });
   useEffect(() => {
-    where.current = { tela, card };
-    conn.current?.update({ tela, card });
-  }, [tela, card]);
+    where.current = { tela, card: cardNumber, cardKey, editando: cardKey ? editando : undefined };
+    conn.current?.update(where.current);
+  }, [tela, cardNumber, cardKey, editando]);
 
   const login = me?.login ?? '';
   const nome = me?.nome ?? '';
@@ -52,7 +72,7 @@ export function usePresence(githubToken: string, org: string, me: PresenceMe | n
       githubToken,
       org,
       me: { login, nome, avatar },
-      ...where.current,
+      where: where.current,
       onPeople: setPeople,
       onStatus: s => setStatus(s),
     });

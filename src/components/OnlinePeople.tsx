@@ -11,6 +11,7 @@ const TELA: Record<string, string> = {
 function where(p: OnlinePerson): string {
   if (p.ausente) return 'ausente';
   const tela = TELA[p.tela] ?? '';
+  if (p.card && p.editando) return `${p.editando} no #${p.card}`;
   return p.card ? `vendo o card #${p.card}` : tela;
 }
 

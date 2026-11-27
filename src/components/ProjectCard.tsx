@@ -1,4 +1,5 @@
 import React from 'react';
+import { CardViewersBadge } from './CardViewers';
 import type { ProjectCard as ProjectCardType } from '../types';
 import { Clock, AlertCircle, XCircle, AlertTriangle, Wrench, Sparkles, MapPin, Calendar, UserX, GitFork, Ban, ListChecks } from 'lucide-react';
 import { countTasks } from '../utils/taskProgress';
@@ -335,6 +336,9 @@ function shouldHideLabel(labelName: string, activeViewId?: string, hiddenLabels?
                 </div>
               );
             })}
+
+            {/* Quem está com este card aberto agora */}
+            <CardViewersBadge repo={card.repo} number={card.number} />
 
             {/* Ícone de cidade */}
             {cityLabels.length > 0 && (

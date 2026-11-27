@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePreferenceState, clearFilterPreferences } from './hooks/usePreferenceState';
 import { usePresence } from './hooks/usePresence';
 import { OnlinePeople } from './components/OnlinePeople';
+import { PresenceContext } from './utils/presenceContext';
 import { LoginForm } from './components/LoginForm';
 import { ProjectColumn } from './components/ProjectColumn';
 import { ViewTabs } from './components/ViewTabs';
@@ -217,7 +218,7 @@ function App() {
     org,
     user?.login ? { login: user.login, nome: user.name || user.login, avatar: user.avatar_url } : null,
     mainView === 'board' ? 'quadro' : mainView,
-    isCardModalOpen ? selectedCard?.number : undefined,
+    isCardModalOpen && selectedCard ? { number: selectedCard.number, repo: selectedCard.repo } : undefined,
   );
   // Token do git-calm compartilhado com o devTools (enviado pela ponte quando ele fica pronto)
   useEffect(() => { setDevToolsToken(token); }, [token]);
@@ -1089,7 +1090,10 @@ function App() {
     return <LoginForm onLogin={handleLogin} />;
   }
 
+  const presenceValue = { people: presence.people, myLogin: user?.login };
+
   return (
+    <PresenceContext.Provider value={presenceValue}>
     <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900 transition-colors overflow-hidden">
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 transition-colors shrink-0">
@@ -1653,6 +1657,7 @@ function App() {
         onClose={() => setIsChangelogOpen(false)}
       />
     </div>
+    </PresenceContext.Provider>
   );
 }
 

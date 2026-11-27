@@ -19,6 +19,8 @@ export const CHANGELOG: VersionEntry[] = [
     date: '2026-11-27',
     label: '',
     changes: [
+      { type: 'feat', description: 'Quem está vendo o card: as fotos de quem está com o card aberto aparecem no próprio card do quadro e, dentro do card, um aviso mostra quem mais está nele' },
+      { type: 'feat', description: 'Aviso de edição: quem abre um card vê quando outra pessoa está escrevendo um comentário ou adicionando uma etapa nele, para ninguém trabalhar por cima do outro' },
       { type: 'feat', description: 'Quem está online: no canto inferior direito, como nos chats, aparece quem da organização está com o git-calm aberto agora, e a lista mostra em que tela cada um está ou qual card tem aberto; clicar numa pessoa mostra só os cards dela' },
       { type: 'feat', description: 'Só membros da organização veem a lista, conferido pelo GitHub; quem não quiser aparecer desliga "Aparecer como online" em Configurações › Conta' },
     ],

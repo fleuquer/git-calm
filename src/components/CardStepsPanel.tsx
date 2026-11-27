@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { setPresenceEditing } from '../services/presence';
 import { Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { GitHubService } from '../services/github';
 import { addTask, parseTasks, removeTask, setTaskChecked, type TaskItem } from '../utils/taskProgress';
@@ -24,6 +25,12 @@ export function CardStepsPanel({ token, org, repo, number, initialBody, onChange
   const [busy, setBusy] = useState<string | null>('carregando');
   const [erro, setErro] = useState('');
   const [novo, setNovo] = useState('');
+  // Avisa quem mais está com o card aberto que estou adicionando uma etapa
+  const writingStep = !!novo.trim();
+  useEffect(() => {
+    setPresenceEditing('etapas', writingStep ? 'adicionando uma etapa' : null);
+    return () => setPresenceEditing('etapas', null);
+  }, [writingStep]);
   const inputRef = useRef<HTMLInputElement>(null);
   const service = useRef(new GitHubService(token));
 
