@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import type { ProjectColumn, ViewTab } from '../types';
 import { filterColumns } from '../utils/filterUtils';
+import { usePreferenceSet, usePreferenceState } from '../hooks/usePreferenceState';
 import { getPeopleForView } from '../utils/viewPeopleMapping';
 import { loadViewTagsMapping } from '../utils/viewTagsMapping';
 
@@ -243,7 +244,7 @@ function ChartCard({ title, subtitle, children, tableSlot, defaultShowTable = fa
 
 // ── DashboardModal ────────────────────────────────────────────────────────
 export function DashboardModal({ columns, views }: Props) {
-  const [selectedViewId, setSelectedViewId] = useState<'__all__' | string>('__all__');
+  const [selectedViewId, setSelectedViewId] = usePreferenceState<'__all__' | string>('dashboard_aba', '__all__');
 
   // Gráficos ocultos (persistido em localStorage)
   const [hiddenCharts, setHiddenCharts] = useState<Set<ChartId>>(() => {
@@ -267,16 +268,16 @@ export function DashboardModal({ columns, views }: Props) {
 
   const isVisible = (id: ChartId) => !hiddenCharts.has(id);
 
-  // Filtros por gráfico (não persistidos — redefinem ao trocar de equipe)
-  const [byStatusExcluded, setByStatusExcluded] = useState<Set<string>>(new Set());
-  const [byRepoExcluded, setByRepoExcluded] = useState<Set<string>>(new Set());
-  const [byViewExcluded, setByViewExcluded] = useState<Set<string>>(new Set());
-  const [byAssigneeExcluded, setByAssigneeExcluded] = useState<Set<string>>(new Set());
-  const [progressPersonExcluded, setProgressPersonExcluded] = useState<Set<string>>(new Set());
-  const [asgByLabelPersonExcluded, setAsgByLabelPersonExcluded] = useState<Set<string>>(new Set());
-  const [byLabelExcluded, setByLabelExcluded] = useState<Set<string>>(new Set());
-  const [tagGroupExcluded, setTagGroupExcluded] = useState<Set<string>>(new Set());
-  const [heatmapLabelExcluded, setHeatmapLabelExcluded] = useState<Set<string>>(new Set());
+  // Filtros por gráfico: lembrados ao recarregar (seguem "Salvar preferências entre sessões")
+  const [byStatusExcluded, setByStatusExcluded] = usePreferenceSet('dashboard_status');
+  const [byRepoExcluded, setByRepoExcluded] = usePreferenceSet('dashboard_repos');
+  const [byViewExcluded, setByViewExcluded] = usePreferenceSet('dashboard_areas');
+  const [byAssigneeExcluded, setByAssigneeExcluded] = usePreferenceSet('dashboard_pessoas');
+  const [progressPersonExcluded, setProgressPersonExcluded] = usePreferenceSet('dashboard_progresso_pessoas');
+  const [asgByLabelPersonExcluded, setAsgByLabelPersonExcluded] = usePreferenceSet('dashboard_etiqueta_pessoas');
+  const [byLabelExcluded, setByLabelExcluded] = usePreferenceSet('dashboard_etiquetas');
+  const [tagGroupExcluded, setTagGroupExcluded] = usePreferenceSet('dashboard_grupos');
+  const [heatmapLabelExcluded, setHeatmapLabelExcluded] = usePreferenceSet('dashboard_mapa_etiquetas');
 
   const allCards = useMemo(() => columns.flatMap(c => c.cards), [columns]);
 

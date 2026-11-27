@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = '0.1.10';
+export const CURRENT_VERSION = '0.1.11';
 export const VERSION_STORAGE_KEY = 'app_last_seen_version';
 
 export interface Change {
@@ -14,6 +14,16 @@ export interface VersionEntry {
 }
 
 export const CHANGELOG: VersionEntry[] = [
+  {
+    version: '0.1.11',
+    date: '2026-11-27',
+    label: '',
+    changes: [
+      { type: 'improvement', description: 'Os filtros continuam ativos ao recarregar a página: filtro por pessoa (clique na foto) ou etiqueta, agrupamento, a tela aberta (quadro, dashboard ou devTools) e os filtros dos gráficos do dashboard' },
+      { type: 'improvement', description: 'Seguem a opção "Salvar preferências entre sessões" e são apagados ao sair, para quem entrar depois no mesmo navegador não herdar os filtros' },
+      { type: 'improvement', description: 'Com o filtro por pessoa (clique na foto) ou por etiqueta, as colunas com cards do filtro ficam abertas (mesmo as que você minimizou) e as sem nenhum ficam minimizadas; um clique inverte a coluna enquanto o filtro durar (e isso também é lembrado ao recarregar), e sem filtro volta o que você tinha minimizado' },
+    ],
+  },
   {
     version: '0.1.10',
     date: '2026-11-24',

@@ -23,6 +23,8 @@ interface Props {
   viewTagGroups?: TagGroup[];
   cardAnimations?: Map<number, string>;
   isCollapsed?: boolean;
+  /** Minimizada só porque o filtro ativo não tem cards nela */
+  emptyForFilter?: boolean;
   onToggleCollapse?: () => void;
   compactCardView?: boolean;
   listLayout?: boolean;
@@ -47,6 +49,7 @@ export const ProjectColumn: React.FC<Props> = ({
   viewTagGroups = [],
   cardAnimations,
   isCollapsed = false,
+  emptyForFilter = false,
   onToggleCollapse,
   compactCardView = false,
   listLayout = false,
@@ -106,9 +109,9 @@ export const ProjectColumn: React.FC<Props> = ({
   if (isCollapsed) {
     return (
       <div
-        className={`bg-gray-100 dark:bg-gray-800/50 shrink-0 w-12 border-gray-200 dark:border-gray-700 h-full flex flex-col items-center cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors group ${columnFrame}`}
+        className={`bg-gray-100 dark:bg-gray-800/50 shrink-0 w-12 border-gray-200 dark:border-gray-700 h-full flex flex-col items-center cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700/50 transition-colors group ${columnFrame} ${emptyForFilter ? 'opacity-60 hover:opacity-100' : ''}`}
         onClick={onToggleCollapse}
-        title={`${column.name} (${column.cards.length})`}
+        title={emptyForFilter ? `${column.name}: nenhum card com o filtro ativo (clique para abrir)` : `${column.name} (${column.cards.length})`}
       >
         <div className="flex-1 flex items-center justify-center py-4">
           <div className="flex flex-col items-center gap-3">

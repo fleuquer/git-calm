@@ -494,7 +494,7 @@ export const SettingsPanel: React.FC<Props> = ({
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-gray-100">Preferências de interface</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Controla se ajustes de exibição, como a ordenação dos cards nas colunas, são lembrados entre sessões.
+                  Controla se ajustes de exibição e filtros são lembrados entre sessões: ordenação das colunas, filtro por pessoa ou etiqueta, agrupamento, a tela aberta (quadro ou dashboard) e os filtros dos gráficos do dashboard.
                 </p>
               </div>
             </div>
@@ -504,8 +504,8 @@ export const SettingsPanel: React.FC<Props> = ({
             </label>
             <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
               {savePreferencesEnabled
-                ? 'Ativado: a ordenação escolhida em cada coluna é mantida ao recarregar a página.'
-                : 'Desativado: a ordenação escolhida volta ao padrão a cada recarregamento da página.'}
+                ? 'Ativado: ao recarregar a página, tudo volta como você deixou. Os filtros são apagados ao sair.'
+                : 'Desativado: ordenação e filtros voltam ao padrão a cada recarregamento da página.'}
             </p>
           </div>
 

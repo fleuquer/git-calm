@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { usePreferenceState, clearFilterPreferences } from './hooks/usePreferenceState';
 import { LoginForm } from './components/LoginForm';
 import { ProjectColumn } from './components/ProjectColumn';
 import { ViewTabs } from './components/ViewTabs';
@@ -62,6 +63,7 @@ import {
   savePreference,
 } from './utils/preferenceStorage';
 
+
 function App() {
   // Atualizações automáticas ficam pausadas enquanto a aba está em segundo plano
   const pageVisible = usePageVisible();
@@ -100,9 +102,10 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Estados para filtros clicáveis
-  const [activeAssigneeFilter, setActiveAssigneeFilter] = useState<string | null>(null);
-  const [activeLabelFilter, setActiveLabelFilter] = useState<string | null>(null);
+  // Estados para filtros clicáveis (foto e etiqueta): lembrados ao recarregar,
+  // se "Salvar preferências entre sessões" estiver ligado
+  const [activeAssigneeFilter, setActiveAssigneeFilter] = usePreferenceState<string | null>('pessoa', null);
+  const [activeLabelFilter, setActiveLabelFilter] = usePreferenceState<string | null>('etiqueta', null);
 
   // Estado para modal de detalhes do card
   const [selectedCard, setSelectedCard] = useState<ProjectCard | null>(null);
@@ -204,7 +207,8 @@ function App() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
-  const [mainView, setMainView] = useState<'board' | 'dashboard' | 'devtools'>('board');
+  // Tela aberta (quadro, dashboard, devTools): volta na mesma ao recarregar
+  const [mainView, setMainView] = usePreferenceState<'board' | 'dashboard' | 'devtools'>('tela', 'board');
   // Token do git-calm compartilhado com o devTools (enviado pela ponte quando ele fica pronto)
   useEffect(() => { setDevToolsToken(token); }, [token]);
 
@@ -215,7 +219,7 @@ function App() {
     setDevToolsToast(null);
     setMainView('devtools');
     if (rota) openDevToolsRoute(rota);
-  }, []);
+  }, [setMainView]);
   useEffect(() => {
     if (!token) return;
     // quem já usa o devTools: a ponte fica ligada em segundo plano para receber as notificações dele
@@ -245,13 +249,17 @@ function App() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Estado para agrupamento de cards
-  const [groupBy, setGroupBy] = useState<'none' | 'person' | 'tag' | 'priority' | 'city'>('none');
+  const [groupBy, setGroupBy] = usePreferenceState<'none' | 'person' | 'tag' | 'priority' | 'city'>('agrupamento', 'none');
 
   // Estado para colunas minimizadas
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(() => {
     const saved = localStorage.getItem('github_collapsed_columns');
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
+
+  // Colunas que a pessoa abriu ou minimizou com filtro ativo (valem só para o filtro atual e
+  // são lembradas ao recarregar, junto com o filtro)
+  const [columnFlips, setColumnFlips] = usePreferenceState<{ key: string; ids: string[] }>('colunas_do_filtro', { key: '', ids: [] });
 
   // Estado para visão compacta dos cards
   const [compactCardView, setCompactCardView] = useState<boolean>(() => {
@@ -800,6 +808,12 @@ function App() {
     localStorage.removeItem('github_token');
     localStorage.removeItem('github_org');
     localStorage.removeItem('github_project');
+    // quem entrar depois neste navegador não herda os filtros de quem saiu
+    setActiveAssigneeFilter(null);
+    setActiveLabelFilter(null);
+    setGroupBy('none');
+    setMainView('board');
+    clearFilterPreferences();
     setToken('');
     setOrg('');
     setProjectNumber(0);
@@ -1044,6 +1058,22 @@ function App() {
   }
 
   const totalCards = getTotalCards(filteredColumns);
+
+  // Com filtro por pessoa ou etiqueta, quem manda é o filtro: colunas com cards do filtro ficam
+  // abertas (mesmo as minimizadas à mão) e as sem nenhum ficam minimizadas. Um clique inverte a
+  // coluna enquanto o filtro durar; sem filtro, volta o que a pessoa minimizou.
+  const clickFilterKey = activeAssigneeFilter ? `p:${activeAssigneeFilter}` : activeLabelFilter ? `e:${activeLabelFilter}` : '';
+  const flippedIds = new Set(columnFlips?.key === clickFilterKey && Array.isArray(columnFlips.ids) ? columnFlips.ids : []);
+  const isColumnCollapsed = (column: ProjectColumnType) =>
+    clickFilterKey
+      ? (column.cards.length === 0) !== flippedIds.has(column.id)
+      : collapsedColumns.has(column.id);
+  const handleColumnCollapseClick = (column: ProjectColumnType) => {
+    if (!clickFilterKey) { handleToggleColumnCollapse(column.id); return; }
+    const ids = new Set(flippedIds);
+    if (ids.has(column.id)) ids.delete(column.id); else ids.add(column.id);
+    setColumnFlips({ key: clickFilterKey, ids: [...ids] });
+  };
 
   if (!token || !org || !projectNumber) {
     return <LoginForm onLogin={handleLogin} />;
@@ -1362,8 +1392,9 @@ function App() {
                   viewTags={getTagsForView(activeViewId)}
                   viewTagGroups={getTagGroupsForView(activeViewId)}
                   cardAnimations={cardAnimations}
-                  isCollapsed={collapsedColumns.has(column.id)}
-                  onToggleCollapse={() => handleToggleColumnCollapse(column.id)}
+                  isCollapsed={isColumnCollapsed(column)}
+                  emptyForFilter={!!clickFilterKey && column.cards.length === 0}
+                  onToggleCollapse={() => handleColumnCollapseClick(column)}
                   compactCardView={compactCardView}
                   listLayout={listLayout}
                   onDropCard={handleMoveCard}
