@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Users } from 'lucide-react';
+import { Presentation, Users } from 'lucide-react';
 import type { OnlinePerson, PresenceStatus } from '../services/presence';
 
 const TELA: Record<string, string> = {
@@ -10,6 +10,8 @@ const TELA: Record<string, string> = {
 
 function where(p: OnlinePerson): string {
   if (p.ausente) return 'ausente';
+  if (p.conduzindo) return 'conduzindo a daily';
+  if (p.seguindo) return 'seguindo a daily';
   const tela = TELA[p.tela] ?? '';
   if (p.card && p.editando) return `${p.editando} no #${p.card}`;
   return p.card ? `vendo o card #${p.card}` : tela;
@@ -29,10 +31,12 @@ interface Props {
   myLogin?: string;
   /** Clique numa pessoa: mostra só os cards dela */
   onPick?: (login: string) => void;
+  /** Começar a conduzir a daily (ausente quando já há uma acontecendo) */
+  onStartDaily?: () => void;
 }
 
 /** Canto inferior direito: quem da organização está com o git-calm aberto agora */
-export function OnlinePeople({ people, status, myLogin, onPick }: Props) {
+export function OnlinePeople({ people, status, myLogin, onPick, onStartDaily }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -127,6 +131,18 @@ export function OnlinePeople({ people, status, myLogin, onPick }: Props) {
               );
             })}
           </ul>
+          {onStartDaily && (
+            <div className="px-3 pt-2 pb-1 border-t border-gray-100 dark:border-gray-700">
+              <button
+                onClick={() => { onStartDaily(); setOpen(false); }}
+                title="Quem seguir vê no git-calm dele o que você abrir: tela, aba, filtros e cards"
+                className="w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium"
+              >
+                <Presentation size={13} />
+                Conduzir daily
+              </button>
+            </div>
+          )}
           <p className="px-3 pt-1.5 pb-1 border-t border-gray-100 dark:border-gray-700 text-[10px] text-gray-400 dark:text-gray-500">
             Só membros da organização veem esta lista. Para não aparecer: Configurações › Conta.
           </p>

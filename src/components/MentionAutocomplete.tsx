@@ -94,6 +94,8 @@ interface Options {
   onChange: (value: string) => void;
   users: MentionUser[]; // Em ordem de prioridade, sem duplicatas
   onActivate?: () => void; // Chamado na primeira vez que o usuário digita "@" (ex: carregar membros)
+  /** Sugestões acima da caixa (para caixas no pé da tela, como a da conversa) */
+  above?: boolean;
 }
 
 interface ActiveMention {
@@ -103,7 +105,7 @@ interface ActiveMention {
   left: number;
 }
 
-export function useMentionAutocomplete({ textareaRef, value, onChange, users, onActivate }: Options) {
+export function useMentionAutocomplete({ textareaRef, value, onChange, users, onActivate, above = false }: Options) {
   const [active, setActive] = useState<ActiveMention | null>(null);
   const [highlighted, setHighlighted] = useState(0);
   const [activated, setActivated] = useState(false);
@@ -190,7 +192,7 @@ export function useMentionAutocomplete({ textareaRef, value, onChange, users, on
   const popup = isOpen ? (
     <div
       className="absolute z-30 w-64 max-w-[calc(100%-1rem)] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 overflow-hidden"
-      style={{ top: active!.top, left: Math.max(0, active!.left) }}
+      style={above ? { bottom: 'calc(100% + 4px)', left: Math.max(0, active!.left) } : { top: active!.top, left: Math.max(0, active!.left) }}
       role="listbox"
     >
       {suggestions.map((user, i) => (

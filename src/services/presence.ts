@@ -8,7 +8,8 @@
  *
  * Quem desliga "Aparecer como online" não entra no canal: não aparece e também não vê.
  */
-import { RealtimeClient, type RealtimeChannel } from '@supabase/realtime-js';
+import type { RealtimeChannel, RealtimeClient } from '@supabase/realtime-js';
+import { acquireRealtime, getSupabaseGrant, releaseRealtime, type SupabaseGrant } from './supabase';
 
 export interface PresenceMe {
   login: string;
@@ -28,6 +29,10 @@ interface PresenceMeta extends PresenceMe {
   cardKey?: string;
   /** O que está editando no card aberto (ex.: "escrevendo um comentário") */
   editando?: string;
+  /** Login de quem está seguindo na daily */
+  seguindo?: string;
+  /** Está conduzindo a daily */
+  conduzindo?: boolean;
   /** Quando abriu o git-calm (ms) */
   desde: number;
 }
@@ -38,6 +43,8 @@ export interface OnlinePerson extends PresenceMe {
   card?: number;
   cardKey?: string;
   editando?: string;
+  seguindo?: string;
+  conduzindo?: boolean;
   desde: number;
   /** Quantas abas a pessoa tem abertas */
   abas: number;
@@ -91,19 +98,6 @@ export function onPresenceEditingChange(cb: () => void): () => void {
 }
 
 // ── Conexão ─────────────────────────────────────────────────────────────────
-interface Grant { status: 'ok'; url: string; chave: string; token: string; canal: string; expiraEm: number }
-
-async function requestGrant(githubToken: string, org: string): Promise<Grant | 'desligado'> {
-  const r = await fetch(`/api/presenca?org=${encodeURIComponent(org)}`, {
-    headers: { authorization: `Bearer ${githubToken}` },
-  });
-  // em dev sem a função, ou em outro servidor: o recurso só não aparece
-  if (r.status === 404) return 'desligado';
-  const d = await r.json().catch(() => null) as (Grant | { status: string; erro?: string }) | null;
-  if (!r.ok) throw new Error((d as { erro?: string } | null)?.erro ?? `HTTP ${r.status}`);
-  return d?.status === 'ok' ? (d as Grant) : 'desligado';
-}
-
 /** Junta as abas de cada pessoa numa linha só */
 function toPeople(state: Record<string, PresenceMeta[]>): OnlinePerson[] {
   const people: OnlinePerson[] = [];
@@ -122,6 +116,8 @@ function toPeople(state: Record<string, PresenceMeta[]>): OnlinePerson[] {
       cardKey: ref.cardKey,
       // editando em qualquer aba conta
       editando: metas.find(m => m.editando && m.cardKey === ref.cardKey)?.editando,
+      seguindo: metas.find(m => m.seguindo)?.seguindo,
+      conduzindo: metas.some(m => m.conduzindo),
       desde: Math.min(...metas.map(m => m.desde)),
       abas: metas.length,
     });
@@ -135,6 +131,8 @@ export interface PresenceWhere {
   card?: number;
   cardKey?: string;
   editando?: string;
+  seguindo?: string;
+  conduzindo?: boolean;
 }
 
 /** "repositório#número", para achar o mesmo card entre pessoas */
@@ -157,7 +155,6 @@ export function connectPresence(opts: {
   let closed = false;
   let client: RealtimeClient | null = null;
   let channel: RealtimeChannel | null = null;
-  let grant: Grant | null = null;
   const meta: PresenceMeta = {
     ...opts.me,
     ausente: document.visibilityState === 'hidden',
@@ -174,32 +171,19 @@ export function connectPresence(opts: {
     track();
   };
 
-  /** Token do canal: pede outro quando falta pouco para vencer */
-  const accessToken = async (): Promise<string | null> => {
-    if (grant && grant.expiraEm - Date.now() > 5 * 60_000) return grant.token;
-    const g = await requestGrant(opts.githubToken, opts.org).catch(() => null);
-    if (g && g !== 'desligado') grant = g;
-    return grant?.token ?? null;
-  };
-
   (async () => {
     opts.onStatus('conectando');
-    let g: Grant | 'desligado';
+    let g: SupabaseGrant | 'desligado';
     try {
-      g = await requestGrant(opts.githubToken, opts.org);
+      g = await getSupabaseGrant(opts.githubToken, opts.org);
     } catch (e) {
       if (!closed) opts.onStatus('erro', e instanceof Error ? e.message : String(e));
       return;
     }
     if (closed) return;
     if (g === 'desligado') { opts.onStatus('desligado'); return; }
-    grant = g;
-
-    client = new RealtimeClient(`${g.url.replace(/^http/, 'ws')}/realtime/v1`, {
-      params: { apikey: g.chave },
-      accessToken,
-    });
-    channel = client.channel(g.canal, { config: { private: true, presence: { key: opts.me.login } } });
+    client = acquireRealtime(opts.githubToken, opts.org, g);
+    channel = client.channel(`presenca:${g.org}`, { config: { private: true, presence: { key: opts.me.login } } });
     channel.on('presence', { event: 'sync' }, () => {
       if (!closed && channel) opts.onPeople(toPeople(channel.presenceState<PresenceMeta>()));
     });
@@ -218,15 +202,16 @@ export function connectPresence(opts: {
 
   return {
     update(info) {
-      if (meta.tela === info.tela && meta.card === info.card && meta.cardKey === info.cardKey && meta.editando === info.editando) return;
-      Object.assign(meta, { tela: info.tela, card: info.card, cardKey: info.cardKey, editando: info.editando });
+      const next = { tela: info.tela, card: info.card, cardKey: info.cardKey, editando: info.editando, seguindo: info.seguindo, conduzindo: info.conduzindo };
+      if ((Object.keys(next) as (keyof typeof next)[]).every(k => meta[k] === next[k])) return;
+      Object.assign(meta, next);
       track();
     },
     close() {
       closed = true;
       document.removeEventListener('visibilitychange', onVisibility);
-      if (channel) channel.unsubscribe();
-      client?.disconnect();
+      if (channel && client) client.removeChannel(channel);
+      if (client) releaseRealtime(client);
     },
   };
 }

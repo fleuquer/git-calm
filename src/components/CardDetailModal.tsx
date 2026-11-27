@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ListChecks, NotebookPen, Pin, X, ExternalLink, Calendar, Clock, User, Plus, Send, Trash2, GitBranch, GitCommit, ArrowUpDown, ChevronDown, ChevronUp, CheckCircle, FileText, AlertCircle, MessageSquare, Clipboard, Eye, ArrowRight, Maximize2, Minimize2, Bold, Italic, Strikethrough, List, ListOrdered, Code, Code2, Quote, Minus, Link2 } from 'lucide-react';
+import { ListChecks, MessagesSquare, NotebookPen, Pin, X, ExternalLink, Calendar, Clock, User, Plus, Send, Trash2, GitBranch, GitCommit, ArrowUpDown, ChevronDown, ChevronUp, CheckCircle, FileText, AlertCircle, MessageSquare, Clipboard, Eye, ArrowRight, Maximize2, Minimize2, Bold, Italic, Strikethrough, List, ListOrdered, Code, Code2, Quote, Minus, Link2 } from 'lucide-react';
 import { togglePin, usePinnedCards } from '../utils/pinnedCards';
 import { sameIssue } from '../utils/cardHistory';
 import { requestNewNote } from '../services/noteDraft';
@@ -21,7 +21,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getLabelStyle } from '../utils/labelColors';
 import { CardViewersNotice } from './CardViewers';
-import { setPresenceEditing } from '../services/presence';
+import { presenceCardKey, setPresenceEditing } from '../services/presence';
+import { CardChatPanel } from './CardChatPanel';
+import { consumeChatTabRequest, listCardMessages } from '../services/cardChat';
+import { onOrgEvent } from '../services/orgEvents';
 
 interface Props {
   card: ProjectCard | null;
@@ -40,7 +43,7 @@ interface Props {
   onNavigateTrail?: (index: number) => void;
   openingIssueLink?: IssueLinkRef | null;
   // Usuário logado (para "atribuir a mim")
-  currentUser?: { login: string; avatarUrl?: string };
+  currentUser?: { login: string; avatarUrl?: string; name?: string };
 }
 
 interface IssueDetail {
@@ -118,7 +121,9 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
   const [showLabelInput, setShowLabelInput] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [showPreview, setShowPreview] = useState(false);
-  const [activeSidebarTab, setActiveSidebarTab] = useState<'info' | 'branches' | 'etapas'>('info');
+  const [activeSidebarTab, setActiveSidebarTab] = useState<'info' | 'branches' | 'etapas' | 'conversa'>('info');
+  // Mensagens na conversa do card (aba Conversa); null = ainda não sabe ou indisponível
+  const [chatCount, setChatCount] = useState<number | null>(null);
   // Descrição depois de mudar etapas pela aba Etapas (a do quadro só atualiza no próximo carregamento)
   const [stepsBody, setStepsBody] = useState<{ key: string; body: string } | null>(null);
   // Cards já vinculados (não sugerir de novo) e recarga da seção depois de vincular um sugerido
@@ -399,8 +404,23 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
   const [availableTemplates, setAvailableTemplates] = useState<CommentTemplate[]>([]);
   const [showTemplateForm, setShowTemplateForm] = useState(true); // Controla visibilidade do formulário
 
+  // Conversa do card: quantas mensagens tem (para a aba) e abrir direto nela quando pedido
+  const chatCardKey = card ? presenceCardKey(card.repo, card.number) : '';
+  useEffect(() => {
+    if (!isOpen || !card || !token || !org) return;
+    let alive = true;
+    listCardMessages(token, org, card).then(l => { if (alive) setChatCount(l.length); }).catch(() => { if (alive) setChatCount(null); });
+    const off = onOrgEvent(e => {
+      if (e.tipo === 'chat' && e.msg.card_key === chatCardKey) setChatCount(n => (n ?? 0) + 1);
+      else if (e.tipo === 'chat-apagada' && e.cardKey === chatCardKey) setChatCount(n => Math.max(0, (n ?? 1) - 1));
+    });
+    return () => { alive = false; off(); setChatCount(null); };
+  }, [isOpen, chatCardKey, token, org]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (isOpen && card) {
+      // aberto pelo aviso de menção: começa na conversa
+      if (consumeChatTabRequest(presenceCardKey(card.repo, card.number))) setActiveSidebarTab('conversa');
       loadDetails();
       loadBranchesAndCommits();
       loadLinksData();
@@ -1646,10 +1666,40 @@ export const CardDetailModal: React.FC<Props> = ({ card, isOpen, onClose, token,
                   {stepsTasks && <span className="ml-1 tabular-nums text-[10px] text-gray-400">{stepsTasks.done}/{stepsTasks.total}</span>}
                 </button>
               )}
+              <button
+                onClick={() => setActiveSidebarTab('conversa')}
+                title="Conversa da equipe sobre o card (fica no git-calm, não vai para o GitHub)"
+                className={`flex-1 px-2 py-2 text-xs font-medium transition-colors ${
+                  activeSidebarTab === 'conversa'
+                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-b-2 border-blue-500'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
+              >
+                <MessagesSquare size={14} className="inline mr-1" />
+                Conversa
+                {!!chatCount && <span className="ml-1 tabular-nums text-[10px] text-gray-400">{chatCount}</span>}
+              </button>
             </div>
 
+            {/* Conversa: ocupa a altura toda, com a caixa de mensagem no pé */}
+            {activeSidebarTab === 'conversa' && (
+              <CardChatPanel
+                token={token}
+                org={org}
+                card={{ number: card.number, repo: card.repo, title: card.title }}
+                me={{
+                  login: currentUser?.login ?? '',
+                  nome: currentUser?.name || currentUser?.login || '',
+                  avatar: currentUser?.avatarUrl ?? '',
+                }}
+                mentionUsers={mentionUsers}
+                onMentionActivate={loadMembersOnce}
+                onCount={setChatCount}
+              />
+            )}
+
             {/* Conteúdo da sidebar */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className={`flex-1 overflow-y-auto p-4 ${activeSidebarTab === 'conversa' ? 'hidden' : ''}`}>
               {activeSidebarTab === 'info' && (
                 <div className="space-y-6">
                   {/* Metadata */}

@@ -3,6 +3,13 @@ import { usePreferenceState, clearFilterPreferences } from './hooks/usePreferenc
 import { usePresence } from './hooks/usePresence';
 import { OnlinePeople } from './components/OnlinePeople';
 import { PresenceContext } from './utils/presenceContext';
+import { connectOrgEvents } from './services/orgEvents';
+import { useDaily } from './hooks/useDaily';
+import type { DailyState } from './services/daily';
+import { DailyBanner } from './components/DailyBanner';
+import { ChatMentionToasts } from './components/ChatMentionToasts';
+import { requestChatTab, type ChatMessage } from './services/cardChat';
+import { presenceCardKey } from './services/presence';
 import { LoginForm } from './components/LoginForm';
 import { ProjectColumn } from './components/ProjectColumn';
 import { ViewTabs } from './components/ViewTabs';
@@ -212,14 +219,7 @@ function App() {
   }, []);
   // Tela aberta (quadro, dashboard, devTools): volta na mesma ao recarregar
   const [mainView, setMainView] = usePreferenceState<'board' | 'dashboard' | 'devtools'>('tela', 'board');
-  // Quem da organização está com o git-calm aberto (e em que tela ou card)
-  const presence = usePresence(
-    token,
-    org,
-    user?.login ? { login: user.login, nome: user.name || user.login, avatar: user.avatar_url } : null,
-    mainView === 'board' ? 'quadro' : mainView,
-    isCardModalOpen && selectedCard ? { number: selectedCard.number, repo: selectedCard.repo } : undefined,
-  );
+
   // Token do git-calm compartilhado com o devTools (enviado pela ponte quando ele fica pronto)
   useEffect(() => { setDevToolsToken(token); }, [token]);
 
@@ -1037,6 +1037,62 @@ function App() {
     return service.searchIssueByNumber(org, issueNumber);
   };
 
+  // ── Supabase: eventos ao vivo, daily e presença ─────────────────────────────
+  // Canal de eventos da organização (daily, conversa nos cards); independe de aparecer online
+  const [orgEventsOn, setOrgEventsOn] = useState(false);
+  useEffect(() => {
+    if (!token || !org || !user?.login) return;
+    const off = connectOrgEvents(token, org, ok => setOrgEventsOn(ok));
+    return () => { off(); setOrgEventsOn(false); };
+  }, [token, org, user?.login]);
+
+  const presenceMe = user?.login ? { login: user.login as string, nome: (user.name || user.login) as string, avatar: user.avatar_url as string } : null;
+
+  // Daily: onde estou agora e como ir para onde está quem conduz
+  const dailyState: DailyState = {
+    tela: mainView,
+    viewId: activeViewId,
+    pessoa: activeAssigneeFilter,
+    etiqueta: activeLabelFilter,
+    agrupamento: groupBy,
+    card: isCardModalOpen && selectedCard
+      ? { number: selectedCard.number, repo: selectedCard.repo, url: selectedCard.url }
+      : null,
+  };
+  const applyDailyState = (s: DailyState) => {
+    setMainView(s.tela);
+    if (s.viewId && s.viewId !== activeViewId && views.some(v => v.id === s.viewId)) handleViewChange(s.viewId);
+    setActiveAssigneeFilter(s.pessoa);
+    setActiveLabelFilter(s.etiqueta);
+    setGroupBy(s.agrupamento as typeof groupBy);
+    const open = isCardModalOpen && selectedCard;
+    if (s.card) {
+      const same = open && selectedCard.number === s.card.number && (selectedCard.repo ?? '').toLowerCase() === (s.card.repo ?? '').toLowerCase();
+      if (!same) handleOpenFromHistory(s.card);
+    } else if (open) {
+      setIsCardModalOpen(false);
+      setSelectedCard(null);
+      setCardTrail([]);
+    }
+  };
+  const daily = useDaily({ enabled: orgEventsOn, me: presenceMe, current: dailyState, apply: applyDailyState });
+
+  // Quem da organização está com o git-calm aberto (e em que tela ou card)
+  const presence = usePresence(
+    token,
+    org,
+    presenceMe,
+    mainView === 'board' ? 'quadro' : mainView,
+    isCardModalOpen && selectedCard ? { number: selectedCard.number, repo: selectedCard.repo } : undefined,
+    { seguindo: daily.following ? daily.other?.lider.login : undefined, conduzindo: daily.leading },
+  );
+
+  // Aviso de menção na conversa: abre o card direto na aba Conversa
+  const openChatMention = (m: ChatMessage) => {
+    requestChatTab(m.card_key);
+    handleOpenFromHistory({ number: m.card_numero, repo: m.card_repo || undefined, url: `https://github.com/${org}/${m.card_repo}/issues/${m.card_numero}` });
+  };
+
   // Filtrar colunas baseado na visualização ativa
   const activeView = views.find(v => v.id === activeViewId) || views[0];
   let filteredColumns = filterColumns(columns, activeView);
@@ -1355,6 +1411,9 @@ function App() {
         </div>
       </header>
 
+      {/* Daily: quem conduz e quem segue */}
+      <DailyBanner daily={daily} people={presence.people} myLogin={user?.login} />
+
       {/* Content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* View Tabs — só no Board */}
@@ -1433,6 +1492,17 @@ function App() {
         status={presence.status}
         myLogin={user?.login}
         onPick={login => { setMainView('board'); if (activeAssigneeFilter !== login) handleToggleAssigneeFilter(login); }}
+        onStartDaily={orgEventsOn && !daily.leading && !daily.other ? daily.start : undefined}
+      />
+
+      {/* Menções a mim na conversa dos cards */}
+      <ChatMentionToasts
+        token={token}
+        org={org}
+        myLogin={user?.login}
+        enabled={orgEventsOn}
+        openCardKey={isCardModalOpen && selectedCard ? presenceCardKey(selectedCard.repo, selectedCard.number) : undefined}
+        onOpen={openChatMention}
       />
 
       {/* Footer */}
@@ -1531,7 +1601,7 @@ function App() {
         trail={cardTrail}
         onNavigateTrail={handleNavigateTrail}
         openingIssueLink={openingIssueLink}
-        currentUser={user ? { login: user.login, avatarUrl: user.avatar_url } : undefined}
+        currentUser={user ? { login: user.login, avatarUrl: user.avatar_url, name: user.name } : undefined}
       />
 
       {/* Daily Report Modal */}

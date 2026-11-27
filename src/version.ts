@@ -19,6 +19,9 @@ export const CHANGELOG: VersionEntry[] = [
     date: '2026-11-27',
     label: '',
     changes: [
+      { type: 'feat', description: 'Conversa no card: nova aba "Conversa" para a equipe falar sobre o card sem comentar no GitHub; as mensagens ficam guardadas por 30 dias e só quem é da organização vê' },
+      { type: 'feat', description: 'Menção na conversa: quem é chamado com @ recebe um aviso na tela na hora (ou ao abrir o git-calm, se estava fora), com um botão que abre o card direto na conversa' },
+      { type: 'feat', description: 'Modo daily: quem conduz clica em "Conduzir daily" (na lista de quem está online) e os outros podem seguir; quem segue vê no próprio git-calm a tela, a aba, os filtros e os cards que quem conduz abrir, e ao parar de seguir volta para onde estava' },
       { type: 'feat', description: 'Quem está vendo o card: as fotos de quem está com o card aberto aparecem no próprio card do quadro e, dentro do card, um aviso mostra quem mais está nele' },
       { type: 'feat', description: 'Aviso de edição: quem abre um card vê quando outra pessoa está escrevendo um comentário ou adicionando uma etapa nele, para ninguém trabalhar por cima do outro' },
       { type: 'feat', description: 'Quem está online: no canto inferior direito, como nos chats, aparece quem da organização está com o git-calm aberto agora, e a lista mostra em que tela cada um está ou qual card tem aberto; clicar numa pessoa mostra só os cards dela' },

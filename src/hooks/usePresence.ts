@@ -45,6 +45,7 @@ export function usePresence(
   me: PresenceMe | null,
   tela: string,
   card?: { number: number; repo?: string },
+  daily?: { seguindo?: string; conduzindo?: boolean },
 ) {
   const visible = useSyncExternalStore(onPresenceVisibleChange, getPresenceVisible);
   const editando = useSyncExternalStore(onPresenceEditingChange, getPresenceEditing);
@@ -55,11 +56,13 @@ export function usePresence(
   const cardNumber = card?.number;
   const cardKey = card ? presenceCardKey(card.repo, card.number) : undefined;
   // a tela e o card mudam muito: vão por referência, sem reconectar
+  const seguindo = daily?.seguindo;
+  const conduzindo = daily?.conduzindo;
   const where = useRef<PresenceWhere>({ tela });
   useEffect(() => {
-    where.current = { tela, card: cardNumber, cardKey, editando: cardKey ? editando : undefined };
+    where.current = { tela, card: cardNumber, cardKey, editando: cardKey ? editando : undefined, seguindo, conduzindo };
     conn.current?.update(where.current);
-  }, [tela, cardNumber, cardKey, editando]);
+  }, [tela, cardNumber, cardKey, editando, seguindo, conduzindo]);
 
   const login = me?.login ?? '';
   const nome = me?.nome ?? '';
